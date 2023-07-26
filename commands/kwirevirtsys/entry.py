@@ -13,7 +13,7 @@ _design = adsk.fusion.Design.cast(_product)
 _rootComp = _design.rootComponent
 
 # TODO *** Specify the command identity information. ***
-CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdDialog'
+CMD_ID = f'kwirevirtsys'
 CMD_NAME = 'kwire virtualization system'
 CMD_Description = 'Calculate kwire position relative to 4 markers and 8 distances'
 
