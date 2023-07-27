@@ -109,16 +109,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
         facesSelComIn = adsk.core.SelectionCommandInput.cast(inputs.itemById('faces'))
         faces: list[adsk.fusion.BRepFace] = [facesSelComIn.selection(x).entity for x in range(facesSelComIn.selectionCount)]
 
-        _ui.messageBox(str("ciao")) #!!!
-
         measMgr: adsk.core.MeasureManager = _app.measureManager
 
         results = []
         for f1, f2 in itertools.product(kwire.faces, faces):
             results.append(measMgr.measureMinimumDistance(f1, f2).value)
 
-        _ui.messageBox(str(results))#!!!
-        _ui.messageBox(str(min(results)))
+        _ui.messageBox("minimum distance: {:.3f} mm".format(10*min(results))) # convert cm to mm
         
     except:
         if _ui:
