@@ -12,7 +12,7 @@ _product = _app.activeProduct
 _design = adsk.fusion.Design.cast(_product)
 _rootComp = _design.rootComponent
 
-# TODO *** Specify the command identity information. ***
+# *** Specify the command identity information. ***
 CMD_ID = f'kwirevirtsys'
 CMD_NAME = 'kwire virtualization system'
 CMD_Description = 'Calculate kwire position relative to 4 markers and 8 distances'
@@ -20,7 +20,7 @@ CMD_Description = 'Calculate kwire position relative to 4 markers and 8 distance
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
 
-# TODO *** Define the location where the command button will be created. ***
+# *** Define the location where the command button will be created. ***
 # This is done by specifying the workspace, the tab, and the panel, and the 
 # command it will be inserted beside. Not providing the command to position it
 # will insert it at the end.
@@ -35,6 +35,10 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 # they are not released and garbage collected.
 local_handlers = []
 
+markA_last: adsk.fusion.ConstructionPoint = None
+markB_last: adsk.fusion.ConstructionPoint = None
+markC_last: adsk.fusion.ConstructionPoint = None
+markD_last: adsk.fusion.ConstructionPoint = None
 
 # Executed when add-in is run.
 def start():
@@ -79,26 +83,26 @@ def stop():
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Created Event')
+    futil.log(f'{CMD_NAME}: Command Created Event')
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    markA = inputs.addSelectionInput('marker_a', "marker A", "select point")
-    markA.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markA.setSelectionLimits(minimum=1, maximum=1)
+    markA_sel = inputs.addSelectionInput('marker_a', "marker A", "select point")
+    markA_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
+    markA_sel.setSelectionLimits(minimum=1, maximum=1)
 
-    markB = inputs.addSelectionInput('marker_b', "marker B", "select point")
-    markB.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markB.setSelectionLimits(minimum=1, maximum=1)
+    markB_sel = inputs.addSelectionInput('marker_b', "marker B", "select point")
+    markB_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
+    markB_sel.setSelectionLimits(minimum=1, maximum=1)
 
-    markC = inputs.addSelectionInput('marker_c', "marker C", "select point")
-    markC.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markC.setSelectionLimits(minimum=1, maximum=1)
+    markC_sel = inputs.addSelectionInput('marker_c', "marker C", "select point")
+    markC_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
+    markC_sel.setSelectionLimits(minimum=1, maximum=1)
 
-    markD = inputs.addSelectionInput('marker_d', "marker D", "select point")
-    markD.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markD.setSelectionLimits(minimum=1, maximum=1)
+    markD_sel = inputs.addSelectionInput('marker_d', "marker D", "select point")
+    markD_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
+    markD_sel.setSelectionLimits(minimum=1, maximum=1)
 
     _ = inputs.addValueInput('distP1A', 'P1 - A', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0))
     _ = inputs.addValueInput('distP1B', 'P1 - B', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0))
@@ -110,20 +114,49 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     _ = inputs.addValueInput('distP2C', 'P2 - C', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0))
     _ = inputs.addValueInput('distP2D', 'P2 - D', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0))
 
-    _ = inputs.addValueInput('kwirer', 'kwire radius', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0.05))
-    _ = inputs.addValueInput('kwirel', 'kwire lenght', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(10.0))
+    _ = inputs.addValueInput('kwirer', 'kwire radius', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0.08))
+    _ = inputs.addValueInput('kwirel', 'kwire lenght', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(11.0))
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(args.command.executePreview, command_preview, local_handlers=local_handlers)
     futil.add_handler(args.command.validateInputs, command_validate_input, local_handlers=local_handlers)
     futil.add_handler(args.command.destroy, command_destroy, local_handlers=local_handlers)
+    futil.add_handler(args.command.activate, command_activate, local_handlers=local_handlers)
+
+
+def command_activate(args: adsk.core.CommandEventArgs):
+    global markA_last, markB_last, markC_last, markD_last
+
+    futil.log(f'{CMD_NAME}: Command activate Event.')
+
+    inputs = args.command.commandInputs
+    if markA_last != None:
+        futil.log(f'\tReset markA selection to last one used: x,y,z -> {markA_last.geometry.asArray()}')
+        markA_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_a')
+        markA_sel.addSelection(markA_last)
+        
+    if markB_last != None:
+        futil.log(f'\tReset markB selection to last one used: x,y,z -> {markB_last.geometry.asArray()}')
+        markB_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_b')
+        markB_sel.addSelection(markB_last)
+    
+    if markC_last != None:
+        futil.log(f'\tReset markC selection to last one used: x,y,z -> {markC_last.geometry.asArray()}')
+        markC_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_c')
+        markC_sel.addSelection(markC_last)
+    
+    if markD_last != None:
+        futil.log(f'\tReset markD selection to last one used: x,y,z -> {markD_last.geometry.asArray()}')
+        markD_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_d')
+        markD_sel.addSelection(markD_last)
+        
 
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Execute Event')
+    futil.log(f'{CMD_NAME}: Command Execute Event')
 
     try:
         def getCoord(cp):
@@ -138,21 +171,19 @@ def command_execute(args: adsk.core.CommandEventArgs):
         markCcoord = getCoord(inputs.itemById('marker_c'))
         markDcoord = getCoord(inputs.itemById('marker_d'))
 
-        _ui.messageBox(str(markAcoord)) #!!!
-
-        P1coord = trilaterate3D([markAcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1A')).value],
-                                 markBcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1B')).value],
-                                 markCcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1C')).value],
-                                 markDcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1D')).value]])
+        P1 = trilaterate3D([markAcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1A')).value],
+                            markBcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1B')).value],
+                            markCcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1C')).value],
+                            markDcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP1D')).value]])
         
-        P2coord = trilaterate3D([markAcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2A')).value],
-                                 markBcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2B')).value],
-                                 markCcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2C')).value],
-                                 markDcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2D')).value]])
+        P2 = trilaterate3D([markAcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2A')).value],
+                            markBcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2B')).value],
+                            markCcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2C')).value],
+                            markDcoord + [adsk.core.ValueCommandInput.cast(inputs.itemById('distP2D')).value]])
 
         create_cylinder(_rootComp,
-                        adsk.core.Point3D.create(P1coord[0], P1coord[1], P1coord[2]),
-                        adsk.core.Point3D.create(P2coord[0], P2coord[1], P2coord[2]),
+                        P1,
+                        P2,
                         adsk.core.ValueCommandInput.cast(inputs.itemById('kwirer')).value,
                         adsk.core.ValueCommandInput.cast(inputs.itemById('kwirel')).value)
         
@@ -162,7 +193,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
 
 # funziona al 99%
-def trilaterate3D(distances):
+def trilaterate3D(distances) -> adsk.core.Point3D:
     p1=np.array(distances[0][:3])
     p2=np.array(distances[1][:3])
     p3=np.array(distances[2][:3])       
@@ -186,34 +217,40 @@ def trilaterate3D(distances):
     dist1=np.linalg.norm(p4-ans1)
     dist2=np.linalg.norm(p4-ans2)
     if np.abs(r4-dist1)<np.abs(r4-dist2):
-        return ans1
-    else: 
-        return ans2
+        return adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2])
+    else:
+        return adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])
 
 
-def create_cylinder(rootComp, p1, p2, r, lenght):
+def create_cylinder(rootComp: adsk.fusion.Component, p1, p2, r, lenght):
     try:
         planes = rootComp.constructionPlanes
         planeInput = adsk.fusion.ConstructionPlaneInput.cast(planes.createInput())
 
         planeInput.setByPlane(adsk.core.Plane.create(p1, p1.vectorTo(p2)))   
         plane1 = rootComp.constructionPlanes.add(planeInput)
-        
         sketch1 = rootComp.sketches.add(plane1)
         circles = sketch1.sketchCurves.sketchCircles
         circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), r)
-        
         profile0 = sketch1.profiles.item(0)
 
-        extFeats = adsk.fusion.ExtrudeFeatures.cast(rootComp.features.extrudeFeatures)
+        extrudes = adsk.fusion.ExtrudeFeatures.cast(rootComp.features.extrudeFeatures)
         dist = adsk.core.ValueInput.createByReal(lenght)
-        extInput = extFeats.createInput(profile0, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        extInput = extrudes.createInput(profile0, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         extInput.setOneSideExtent(adsk.fusion.DistanceExtentDefinition.create(dist), adsk.fusion.ExtentDirections.PositiveExtentDirection)
         extInput.isSolid = True
-        extFeats.add(extInput)
+        ext = extrudes.add(extInput)
+
+        cilinder = ext.bodies.item(0).createComponent()
 
         plane1.deleteMe()
         sketch1.deleteMe()
+        # ext.dissolve() //!!!
+
+        # axes = rootComp.constructionAxes
+        # axisInput = axes.createInput()  
+        # axisInput.setByLine(adsk.core.InfiniteLine3D.create(p1, p2))
+        # axes.add(axisInput) 
         
     except:
         _ui.messageBox("couldn't extrude body")
@@ -222,31 +259,48 @@ def create_cylinder(rootComp, p1, p2, r, lenght):
 # This event handler is called when the command needs to compute a new preview in the graphics window.
 def command_preview(args: adsk.core.CommandEventArgs):
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Preview Event')
+    futil.log(f'{CMD_NAME}: Command Preview Event')
     inputs = args.command.commandInputs
 
 
 # This event handler is called when the user changes anything in the command dialog
 # allowing you to modify values of other inputs based on that change.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    changed_input = args.input
-    inputs = args.inputs
+    global markA_last, markB_last, markC_last, markD_last
 
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
+    futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
+
+    def getCurrentSelectedMarker(id: str) -> adsk.fusion.ConstructionPoint:
+        mark_comm = adsk.core.SelectionCommandInput.cast(args.input.commandInputs.itemById(id))
+        if mark_comm.selectionCount < 1:
+            # futil.log(f'\t{id} not selected')
+            return None
+        else:
+            futil.log(f'\tnew {args.input.id}: x,y,z -> {mark_comm.selection(0).entity.geometry.asArray()}')
+            return mark_comm.selection(0).entity
+    
+    if args.input.id == "marker_a":
+        markA_last = getCurrentSelectedMarker(args.input.id)
+    elif args.input.id == "marker_b":
+        markB_last = getCurrentSelectedMarker(args.input.id)
+    elif args.input.id == "marker_c":
+        markC_last = getCurrentSelectedMarker(args.input.id)
+    elif args.input.id == "marker_d":
+        markD_last = getCurrentSelectedMarker(args.input.id)
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog
 # which allows you to verify that all of the inputs are valid and enables the OK button.
 def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Validate Input Event')
+    futil.log(f'{CMD_NAME}: Validate Input Event')
 
     inputs = args.inputs
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
     valueInput = inputs.itemById('value_input')
-    if valueInput.value >= 0:
+    if args.areInputsValid or valueInput.value >= 0:
         args.areInputsValid = True
     else:
         args.areInputsValid = False
@@ -255,7 +309,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Destroy Event')
+    futil.log(f'{CMD_NAME}: Command Destroy Event')
 
     global local_handlers
     local_handlers = []
