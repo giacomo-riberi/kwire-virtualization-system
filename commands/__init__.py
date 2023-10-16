@@ -5,12 +5,14 @@
 # You need to use aliases (import "entry" as "my_module") assuming you have the default module named "entry".
 from .kwirevirtsys import entry as kwirevirtsys
 from .kwiredistsys import entry as kwiredistsys
+from .kwirevirtsys_fast import entry as kwirevirtsys_fast
 
 # TODO add your imported modules to this list.
 # Fusion will automatically call the start() and stop() functions.
 commands = [
     kwirevirtsys,
-    kwiredistsys
+    kwirevirtsys_fast,
+    kwiredistsys,
 ]
 
 
