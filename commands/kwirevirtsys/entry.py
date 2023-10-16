@@ -128,28 +128,28 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 def command_activate(args: adsk.core.CommandEventArgs):
     global markA_last, markB_last, markC_last, markD_last
 
-    futil.log(f'{CMD_NAME}: Command activate Event.')
+    futil.log(f'{CMD_NAME}: Command Activate Event')
 
     inputs = args.command.commandInputs
     if markA_last != None:
         futil.log(f'\tReset markA selection to last one used: x,y,z -> {markA_last.geometry.asArray()}')
-        markA_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_a')
-        markA_sel.addSelection(markA_last)
+        markA_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_a')
+        markA_com.addSelection(markA_last)
         
     if markB_last != None:
         futil.log(f'\tReset markB selection to last one used: x,y,z -> {markB_last.geometry.asArray()}')
-        markB_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_b')
-        markB_sel.addSelection(markB_last)
+        markB_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_b')
+        markB_com.addSelection(markB_last)
     
     if markC_last != None:
         futil.log(f'\tReset markC selection to last one used: x,y,z -> {markC_last.geometry.asArray()}')
-        markC_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_c')
-        markC_sel.addSelection(markC_last)
+        markC_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_c')
+        markC_com.addSelection(markC_last)
     
     if markD_last != None:
         futil.log(f'\tReset markD selection to last one used: x,y,z -> {markD_last.geometry.asArray()}')
-        markD_sel: adsk.core.SelectionCommandInput = inputs.itemById('marker_d')
-        markD_sel.addSelection(markD_last)
+        markD_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_d')
+        markD_com.addSelection(markD_last)
         
 
 # This event handler is called when the user clicks the OK button in the command dialog or 
@@ -226,10 +226,10 @@ def create_cylinder(rootComp: adsk.fusion.Component, p1, p2, r, lenght):
     try:
         planes = rootComp.constructionPlanes
         planeInput = adsk.fusion.ConstructionPlaneInput.cast(planes.createInput())
-
         planeInput.setByPlane(adsk.core.Plane.create(p1, p1.vectorTo(p2)))   
         plane1 = rootComp.constructionPlanes.add(planeInput)
         sketch1 = rootComp.sketches.add(plane1)
+        
         circles = sketch1.sketchCurves.sketchCircles
         circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), r)
         profile0 = sketch1.profiles.item(0)
@@ -268,25 +268,24 @@ def command_preview(args: adsk.core.CommandEventArgs):
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     global markA_last, markB_last, markC_last, markD_last
 
-    # General logging for debug.
-    futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
+    # futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
 
     def getCurrentSelectedMarker(id: str) -> adsk.fusion.ConstructionPoint:
         mark_comm = adsk.core.SelectionCommandInput.cast(args.input.commandInputs.itemById(id))
         if mark_comm.selectionCount < 1:
-            # futil.log(f'\t{id} not selected')
+            futil.log(f'\tremoved {id} selection')
             return None
         else:
-            futil.log(f'\tnew {args.input.id}: x,y,z -> {mark_comm.selection(0).entity.geometry.asArray()}')
+            futil.log(f'\tnew {id}: x,y,z -> {mark_comm.selection(0).entity.geometry.asArray()}')
             return mark_comm.selection(0).entity
     
     if args.input.id == "marker_a":
         markA_last = getCurrentSelectedMarker(args.input.id)
-    elif args.input.id == "marker_b":
+    if args.input.id == "marker_b":
         markB_last = getCurrentSelectedMarker(args.input.id)
-    elif args.input.id == "marker_c":
+    if args.input.id == "marker_c":
         markC_last = getCurrentSelectedMarker(args.input.id)
-    elif args.input.id == "marker_d":
+    if args.input.id == "marker_d":
         markD_last = getCurrentSelectedMarker(args.input.id)
 
 
