@@ -110,7 +110,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     markD_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
     markD_sel.setSelectionLimits(minimum=1, maximum=1)
 
-    _ = inputs.addStringValueInput('id_dists', 'id, 8 distances (P1A, P2B..., P2A, P2B...)')
+    _ = inputs.addStringValueInput('id_dists', 'id, 8 distances (P1A, P1B..., P2A, P2B...)')
 
     _ = inputs.addValueInput('kwirer', 'kwire radius', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0.08))
     _ = inputs.addValueInput('kwirel', 'kwire lenght', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(11.0))
