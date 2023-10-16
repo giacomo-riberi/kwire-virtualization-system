@@ -3,6 +3,7 @@ import os, string
 import traceback
 from ...lib import fusion360utils as futil
 from ... import config
+import json
 
 import numpy as np
 
@@ -35,10 +36,7 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 # they are not released and garbage collected.
 local_handlers = []
 
-markA_last: adsk.fusion.ConstructionPoint = None
-markB_last: adsk.fusion.ConstructionPoint = None
-markC_last: adsk.fusion.ConstructionPoint = None
-markD_last: adsk.fusion.ConstructionPoint = None
+kwirer: float = 0.08 # kwire radius in cm
 
 # Executed when add-in is run.
 def start():
@@ -88,31 +86,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    # kwire target 1: 0B11EC7TVE, 94.628, 74.368, 97.741, 80.368, 71.197, 59.674, 71.760, 60.459
-    # !!! probably I need to use the axis for calculations
-    KW_target_sel = inputs.addSelectionInput('kw_target', "K-wire target", "select target K-wire body")
-    KW_target_sel.addSelectionFilter(adsk.core.SelectionCommandInput.SolidBodies)
-    KW_target_sel.setSelectionLimits(minimum=1, maximum=1)
+    _ = inputs.addStringValueInput('fusion360_PAimport_datastr', 'PA import json')
 
-    markA_sel = inputs.addSelectionInput('marker_a', "marker A", "select point")
-    markA_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markA_sel.setSelectionLimits(minimum=1, maximum=1)
-
-    markB_sel = inputs.addSelectionInput('marker_b', "marker B", "select point")
-    markB_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markB_sel.setSelectionLimits(minimum=1, maximum=1)
-
-    markC_sel = inputs.addSelectionInput('marker_c', "marker C", "select point")
-    markC_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markC_sel.setSelectionLimits(minimum=1, maximum=1)
-
-    markD_sel = inputs.addSelectionInput('marker_d', "marker D", "select point")
-    markD_sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPoints)
-    markD_sel.setSelectionLimits(minimum=1, maximum=1)
-
-    _ = inputs.addStringValueInput('id_dists', 'id, 8 distances (P1A, P1B..., P2A, P2B...)')
-
-    _ = inputs.addValueInput('kwirer', 'kwire radius', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(0.08))
+    _ = inputs.addValueInput('kwirer', 'kwire radius', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(kwirer))
     _ = inputs.addValueInput('kwirel', 'kwire lenght', _design.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(11.0))
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -123,30 +99,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.add_handler(args.command.activate, command_activate, local_handlers=local_handlers)
 
 def command_activate(args: adsk.core.CommandEventArgs):
-    global markA_last, markB_last, markC_last, markD_last
-
     futil.log(f'{CMD_NAME}: Command Activate Event')
-
-    inputs = args.command.commandInputs
-    if markA_last != None:
-        futil.log(f'\tReset markA selection to last one used: x,y,z -> {markA_last.geometry.asArray()}')
-        markA_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_a')
-        markA_com.addSelection(markA_last)
-        
-    if markB_last != None:
-        futil.log(f'\tReset markB selection to last one used: x,y,z -> {markB_last.geometry.asArray()}')
-        markB_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_b')
-        markB_com.addSelection(markB_last)
-    
-    if markC_last != None:
-        futil.log(f'\tReset markC selection to last one used: x,y,z -> {markC_last.geometry.asArray()}')
-        markC_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_c')
-        markC_com.addSelection(markC_last)
-    
-    if markD_last != None:
-        futil.log(f'\tReset markD selection to last one used: x,y,z -> {markD_last.geometry.asArray()}')
-        markD_com: adsk.core.SelectionCommandInput = inputs.itemById('marker_d')
-        markD_com.addSelection(markD_last)
         
 
 # This event handler is called when the user clicks the OK button in the command dialog or 
@@ -155,47 +108,106 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME}: Command Execute Event')
 
+    def get_markers(fusion360_PAimport_data) -> dict[str, adsk.core.Point3D] | None:
+        found = {}
+
+        for marker_letter, marker_name in fusion360_PAimport_data["markers"].items():
+            # marker_letter = "A"
+            # name          = "M:3"
+            occ = _rootComp.allOccurrences.itemByName(marker_name)
+            if occ == None:
+                futil.log(f"getMarkers: {marker_name} not found")
+                return None
+
+            cp = occ.component.constructionPoints.itemByName("centerpoint").geometry            
+            cp.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+            found[marker_letter] = cp
+        
+        return found
+
+    def get_bodies(fusion360_PAimport_data) -> dict[str, adsk.fusion.BRepBody] | None:
+        found = {}
+        found_expected_lenght = len(fusion360_PAimport_data["anatomy_structs"])
+
+        for anatomy_struct in fusion360_PAimport_data["anatomy_structs"]:
+            futil.log(f"get_bodies: looking for {anatomy_struct}")
+            for i in range(0, _rootComp.allOccurrences.count):
+                occ = _rootComp.allOccurrences.item(i)
+
+            occ = _rootComp.allOccurrences.itemByName(anatomy_struct)
+            if occ == None:
+                futil.log(f"get_bodies: {anatomy_struct} not found")
+                return None
+            body_comp = occ.component
+            futil.log(f"get_bodies: found {body_comp.name}")
+        
+        return None
+
+        # # Iterate over all the root component components.
+        # for i in range(0, _rootComp.allOccurrences.count):
+        #     occ = _rootComp.allOccurrences.item(i)
+        #     body_comp = occ.component
+            
+            
+        #     # Iterate over all of the bodies within the component.
+        #     for j in range(0, comp.bRepBodies.count):
+        #         brb = comp.bRepBodies.item(j)
+        #         if brb.name in fusion360_PAimport_data["anatomy_structs"]:
+        #             found[brb.name] = brb
+        
+        # if len(found) == found_expected_lenght:
+        #     return found
+        # else:
+        #     _ui.messageBox(f"getBodies: found {len(found)} objects instead of {found_expected_lenght}")
+        #     return None
+        
+    def get_kwire_target_axis(fusion360_PAimport_data) -> adsk.fusion.BRepBody:
+        return #!!!
+            
     try:
-        def getCoord(cp):
-            selcomin = adsk.core.SelectionCommandInput.cast(cp)
-            cpcoord = adsk.fusion.ConstructionPoint.cast(selcomin.selection(0).entity).geometry.asArray()
-            cpcoord = list(cpcoord)
-            return cpcoord
-
         inputs = args.command.commandInputs
-        markAcoord = getCoord(inputs.itemById('marker_a'))
-        markBcoord = getCoord(inputs.itemById('marker_b'))
-        markCcoord = getCoord(inputs.itemById('marker_c'))
-        markDcoord = getCoord(inputs.itemById('marker_d'))
+        fusion360_PAimport_data = json.loads(adsk.core.StringValueCommandInput.cast(inputs.itemById('fusion360_PAimport_datastr')).value)
+        PA_data           = fusion360_PAimport_data["PA_data"]
+        markers           = get_markers(fusion360_PAimport_data)
+        bodies            = get_bodies(fusion360_PAimport_data)
+        kwire_target_axis = get_kwire_target_axis(fusion360_PAimport_data)
 
-        id_dists = adsk.core.StringValueCommandInput.cast(inputs.itemById('id_dists')).value
-        id_dists = [x.strip() for x in id_dists.split(",")]
-
-        if len(id_dists) < 9:
-            raise Exception("please specify 1 id and 8 distances") 
+        P1 = trilaterate3D([list(markers["A"].asArray()) + [PA_data["P1A"]/10],
+                            list(markers["B"].asArray()) + [PA_data["P1B"]/10],
+                            list(markers["C"].asArray()) + [PA_data["P1C"]/10],
+                            list(markers["D"].asArray()) + [PA_data["P1D"]/10]])
         
-        id = id_dists[0]
-        dists = [float(d)/10 for d in id_dists[1:9]] # /10 because user provides in mm but fusion works in cm
-        # validate id
-        if len(id) != 10 and all(c in string.hexdigits for c in id):
-            raise Exception("id is not 10 digits or non hex")
+        P2 = trilaterate3D([list(markers["A"].asArray()) + [PA_data["P2A"]/10], # add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis
+                            list(markers["B"].asArray()) + [PA_data["P2B"]/10],
+                            list(markers["C"].asArray()) + [PA_data["P2C"]/10],
+                            list(markers["D"].asArray()) + [PA_data["P2D"]/10]])
 
-        P1 = trilaterate3D([markAcoord + [dists[0]],
-                            markBcoord + [dists[1]],
-                            markCcoord + [dists[2]],
-                            markDcoord + [dists[3]]])
-        
-        P2 = trilaterate3D([markAcoord + [dists[4]],
-                            markBcoord + [dists[5]],
-                            markCcoord + [dists[6]],
-                            markDcoord + [dists[7]]])
-
-        create_cylinder(_rootComp,
-                        id,
+        kwire = create_cylinder(
+                        fusion360_PAimport_data["PA_data"]["id"],
                         P1,
                         P2,
                         adsk.core.ValueCommandInput.cast(inputs.itemById('kwirer')).value,
                         adsk.core.ValueCommandInput.cast(inputs.itemById('kwirel')).value)
+        
+        # TODO
+        # record somewhere all the stats (following lines) of target kwires
+        # measure delta angle between kwire and target axis
+        # measure delta angle between kwire and target on x/y/z axis
+        # measure delta distance between kwire and target insertion point
+        # measure delta distance between kwire and target insertion point on x/y/z axis ???
+        # measure delta depth of insertion (lenght outside of skin difference between kwire P1-P2 and target P1-P2)
+            # \ consider adding calculation kwirel, to get real depth
+         
+        # https://help.autodesk.com/view/fusion360/ENU/?guid=GUID-393a1edc-08ec-466c-9813-6e3838e020f4
+        # consider using the distance to P2 instead of entrance point
+        # _ui.messageBox(f"containment: {kwire.pointContainment(adsk.core.Point3D.create(21.648, 109.671, -7.7738))}")
+        # _ui.messageBox(f"containment: {kwire.pointContainment(adsk.core.Point3D.create(21.7569, 109.3081, -12.2972))}")
+        
+        # line = adsk.core.Line3D.create(P1, P2)
+        # measureResult = _app.measureManager.measureAngle(line, line)
+        # _app.measureManager.getOrientedBoundingBox
+        # _ui.messageBox(f'Angle value is {str(measureResult.value)}')
+
         
     except:
         _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -203,51 +215,55 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
 # funziona al 99%
 def trilaterate3D(distances) -> adsk.core.Point3D:
-    p1=np.array(distances[0][:3])
-    p2=np.array(distances[1][:3])
-    p3=np.array(distances[2][:3])       
-    p4=np.array(distances[3][:3])
-    r1=distances[0][-1]
-    r2=distances[1][-1]
-    r3=distances[2][-1]
-    r4=distances[3][-1]
-    e_x=(p2-p1)/np.linalg.norm(p2-p1)
-    i=np.dot(e_x,(p3-p1))
-    e_y=(p3-p1-(i*e_x))/(np.linalg.norm(p3-p1-(i*e_x)))
-    e_z=np.cross(e_x,e_y)
-    d=np.linalg.norm(p2-p1)
-    j=np.dot(e_y,(p3-p1))
-    x=((r1**2)-(r2**2)+(d**2))/(2*d)
-    y=(((r1**2)-(r3**2)+(i**2)+(j**2))/(2*j))-((i/j)*(x))
-    z1=np.sqrt(r1**2-x**2-y**2)
-    z2=np.sqrt(r1**2-x**2-y**2)*(-1)
-    ans1=p1+(x*e_x)+(y*e_y)+(z1*e_z)
-    ans2=p1+(x*e_x)+(y*e_y)+(z2*e_z)
-    dist1=np.linalg.norm(p4-ans1)
-    dist2=np.linalg.norm(p4-ans2)
-    if np.abs(r4-dist1)<np.abs(r4-dist2):
+    try:
+        p1=np.array(distances[0][:3])
+        p2=np.array(distances[1][:3])
+        p3=np.array(distances[2][:3])       
+        p4=np.array(distances[3][:3])
+        r1=distances[0][-1]
+        r2=distances[1][-1]
+        r3=distances[2][-1]
+        r4=distances[3][-1]
+        e_x=(p2-p1)/np.linalg.norm(p2-p1)
+        i=np.dot(e_x,(p3-p1))
+        e_y=(p3-p1-(i*e_x))/(np.linalg.norm(p3-p1-(i*e_x)))
+        e_z=np.cross(e_x,e_y)
+        d=np.linalg.norm(p2-p1)
+        j=np.dot(e_y,(p3-p1))
+        x=((r1**2)-(r2**2)+(d**2))/(2*d)
+        y=(((r1**2)-(r3**2)+(i**2)+(j**2))/(2*j))-((i/j)*(x))
+        z1=np.sqrt(r1**2-x**2-y**2)
+        z2=np.sqrt(r1**2-x**2-y**2)*(-1)
+        ans1=p1+(x*e_x)+(y*e_y)+(z1*e_z)
+        ans2=p1+(x*e_x)+(y*e_y)+(z2*e_z)
+        dist1=np.linalg.norm(p4-ans1)
+        dist2=np.linalg.norm(p4-ans2)
+    except Exception as e:
+        _ui.messageBox(f"trilaterate3D: {e.__traceback__.tb_lineno}\n\nerror: {e}")
+
+    if np.abs(r4-dist1) < np.abs(r4-dist2):
         return adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2])
     else:
         return adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])
 
 
-def create_cylinder(rootComp: adsk.fusion.Component, id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: float, lenght: float):
+def create_cylinder(id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: float, lenght: float) -> adsk.fusion.BRepBody:
     try:
-        planes = rootComp.constructionPlanes
+        planes = _rootComp.constructionPlanes
         planeInput = adsk.fusion.ConstructionPlaneInput.cast(planes.createInput())
         planeInput.setByPlane(adsk.core.Plane.create(p1, p1.vectorTo(p2)))   
-        plane1 = rootComp.constructionPlanes.add(planeInput)
-        sketch1 = rootComp.sketches.add(plane1)
+        plane1 = _rootComp.constructionPlanes.add(planeInput)
+        sketch1 = _rootComp.sketches.add(plane1)
         
         circles = sketch1.sketchCurves.sketchCircles
         circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), r)
         profile0 = sketch1.profiles.item(0)
 
-        extrudes = adsk.fusion.ExtrudeFeatures.cast(rootComp.features.extrudeFeatures)
+        extrudes = adsk.fusion.ExtrudeFeatures.cast(_rootComp.features.extrudeFeatures)
         dist = adsk.core.ValueInput.createByReal(lenght)
         extInput = extrudes.createInput(profile0, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         extInput.setOneSideExtent(adsk.fusion.DistanceExtentDefinition.create(dist), adsk.fusion.ExtentDirections.PositiveExtentDirection)
-        extInput.isSolid = True
+        # extInput.isSolid = True
         ext = extrudes.add(extInput)
 
         cilinder = ext.bodies.item(0)
@@ -257,13 +273,10 @@ def create_cylinder(rootComp: adsk.fusion.Component, id: str, p1: adsk.core.Poin
         sketch1.deleteMe()
         ext.dissolve()
 
-        # axes = rootComp.constructionAxes
-        # axisInput = axes.createInput()  
-        # axisInput.setByLine(adsk.core.InfiniteLine3D.create(p1, p2))
-        # axes.add(axisInput) 
+        return cilinder
         
     except Exception as e:
-        _ui.messageBox(f"couldn't extrude body: {e.__traceback__.tb_lineno}\nerror:{e}")
+        _ui.messageBox(f"create_cylinder: {e.__traceback__.tb_lineno}\n\nerror: {e}")
 
 
 # This event handler is called when the command needs to compute a new preview in the graphics window.
@@ -276,27 +289,7 @@ def command_preview(args: adsk.core.CommandEventArgs):
 # This event handler is called when the user changes anything in the command dialog
 # allowing you to modify values of other inputs based on that change.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    global markA_last, markB_last, markC_last, markD_last
-
-    # futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
-
-    def getCurrentSelectedMarker(id: str) -> adsk.fusion.ConstructionPoint:
-        mark_comm = adsk.core.SelectionCommandInput.cast(args.input.commandInputs.itemById(id))
-        if mark_comm.selectionCount < 1:
-            futil.log(f'\tremoved {id} selection')
-            return None
-        else:
-            futil.log(f'\tnew {id}: x,y,z -> {mark_comm.selection(0).entity.geometry.asArray()}')
-            return mark_comm.selection(0).entity
-    
-    if args.input.id == "marker_a":
-        markA_last = getCurrentSelectedMarker(args.input.id)
-    if args.input.id == "marker_b":
-        markB_last = getCurrentSelectedMarker(args.input.id)
-    if args.input.id == "marker_c":
-        markC_last = getCurrentSelectedMarker(args.input.id)
-    if args.input.id == "marker_d":
-        markD_last = getCurrentSelectedMarker(args.input.id)
+    futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog
