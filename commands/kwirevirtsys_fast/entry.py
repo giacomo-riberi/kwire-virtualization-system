@@ -125,7 +125,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
         return found
 
-    def get_bodies(fusion360_PAimport_data) -> dict[str, adsk.fusion.BRepBody] | None:
+    def get_anatomy_structs(fusion360_PAimport_data) -> dict[str, adsk.fusion.BRepBody] | None:
         found = {}
         found_count = 0
         found_expected_count = len(fusion360_PAimport_data["anatomy_structs"])
@@ -138,41 +138,65 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         found[anatomy_struct] = brb
                         found_count += 1
         
-        if found_count == found_expected_count:
-            return found
-        else:
-            return None
-        
-    def get_kwire_target_axis(fusion360_PAimport_data) -> adsk.fusion.ConstructionAxis | None:
+        return found
+        # if found_count == found_expected_count: # !!! add again
+        #     return found
+        # else:
+        #     return None
+    
+    def get_skin() -> adsk.fusion.BRepBody | None:
         for occ in _rootComp.allOccurrences:
-            if occ.name == fusion360_PAimport_data["kwire"]:
+            for brb in occ.bRepBodies:
+                if brb.name == "skin":
+                    return brb
+        
+        
+    def get_kwire_target(fusion360_PAimport_data) -> tuple[adsk.fusion.BRepBody, adsk.core.Point3D, adsk.core.Point3D] | None:
+        for occ in _rootComp.allOccurrences:
+            if occ.name == fusion360_PAimport_data["kwire_target"]:
                 kwire = occ.component
                 for ca in kwire.constructionAxes:
                     if ca.name == "k-wire axis":
-                        futil.log(f"\tfound!: {ca.name}")
-                        return ca
+                        cpo = kwire.constructionPoints.itemByName("outer end point").geometry
+                        cpe = kwire.constructionPoints.itemByName("skin entrance point").geometry
+                        cpo.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+                        cpe.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+                        return kwire.bRepBodies.itemByName("filo"), cpo, cpe
         return None
+    
+    def createAxis_by_Line3D(l: adsk.core.Line3D) -> bool:
+            "create visible construction axis from a line 3D"
+            if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
+                axes = _rootComp.constructionAxes
+                axisInput = axes.createInput()
+                axisInput.setByLine(l.asInfiniteLine())
+                return axes.add(axisInput)
             
     try:
         inputs = args.command.commandInputs
         fusion360_PAimport_data = json.loads(adsk.core.StringValueCommandInput.cast(inputs.itemById('fusion360_PAimport_datastr')).value)
-        PA_data           = fusion360_PAimport_data["PA_data"]
+        PA                = fusion360_PAimport_data["PA"]
         markers           = get_markers(fusion360_PAimport_data)
-        bodies            = get_bodies(fusion360_PAimport_data)
-        kwire_target_axis = get_kwire_target_axis(fusion360_PAimport_data)
+        bodies            = get_anatomy_structs(fusion360_PAimport_data)
+        skin_brb          = get_skin()
+        kwire_target_brb, kwire_target_cpo, kwire_target_cpe = get_kwire_target(fusion360_PAimport_data)
+        kwire_target_line3D = adsk.core.Line3D.create(kwire_target_cpo, kwire_target_cpe)
 
-        P1 = trilaterate3D([list(markers["A"].asArray()) + [PA_data["P1A"]/10],
-                            list(markers["B"].asArray()) + [PA_data["P1B"]/10],
-                            list(markers["C"].asArray()) + [PA_data["P1C"]/10],
-                            list(markers["D"].asArray()) + [PA_data["P1D"]/10]])
-        
-        P2 = trilaterate3D([list(markers["A"].asArray()) + [PA_data["P2A"]/10], # add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis
-                            list(markers["B"].asArray()) + [PA_data["P2B"]/10],
-                            list(markers["C"].asArray()) + [PA_data["P2C"]/10],
-                            list(markers["D"].asArray()) + [PA_data["P2D"]/10]])
+        # kwire_PA_cpo (construction point outer (end))
+        P1 = trilaterate3D([list(markers["A"].asArray()) + [PA["P1A"]/10],
+                            list(markers["B"].asArray()) + [PA["P1B"]/10],
+                            list(markers["C"].asArray()) + [PA["P1C"]/10],
+                            list(markers["D"].asArray()) + [PA["P1D"]/10]])
+        # kwire_PA_cpe (construction point (skin) entrance)
+        P2 = trilaterate3D([list(markers["A"].asArray()) + [PA["P2A"]/10], # add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis
+                            list(markers["B"].asArray()) + [PA["P2B"]/10],
+                            list(markers["C"].asArray()) + [PA["P2C"]/10],
+                            list(markers["D"].asArray()) + [PA["P2D"]/10]])
 
-        kwire = create_cylinder(
-                        fusion360_PAimport_data["PA_data"]["id"],
+        kwire_PA_line3D = adsk.core.Line3D.create(P1, P2)        
+
+        kwire_PA_brb = create_cylinder(
+                        fusion360_PAimport_data["PA"]["id"],
                         P1,
                         P2,
                         adsk.core.ValueCommandInput.cast(inputs.itemById('kwirer')).value,
@@ -180,7 +204,20 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
         # TODO
         # record somewhere all the stats (following lines) of target kwires
-        # measure delta angle between kwire and target axis
+
+        # ++++ measure distance from anatomical structures
+        tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get()
+        for name, anatomy_brb in bodies.items():
+            futil.log(f'{kwire_target_brb.getPhysicalProperties().centerOfMass.asArray()}')
+            a = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
+            b = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
+            futil.log(f'dist value {anatomy_brb.name}: {a:.3f} mm -> target is: {b:.3f} mm')
+
+        # ++++ measure delta angle between kwire and target axis
+        # createAxis_by_Line3D(kwire_PA_line3D)
+        # createAxis_by_Line3D(kwire_target_line3D)
+        futil.log(f'Angle value is {_app.measureManager.measureAngle(kwire_PA_line3D, kwire_target_line3D).value * 57.296}') # convert from radians to degrees
+
         # measure delta angle between kwire and target on x/y/z axis
         # measure delta distance between kwire and target insertion point
         # measure delta distance between kwire and target insertion point on x/y/z axis ???
@@ -192,10 +229,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # _ui.messageBox(f"containment: {kwire.pointContainment(adsk.core.Point3D.create(21.648, 109.671, -7.7738))}")
         # _ui.messageBox(f"containment: {kwire.pointContainment(adsk.core.Point3D.create(21.7569, 109.3081, -12.2972))}")
         
-        # line = adsk.core.Line3D.create(P1, P2)
-        # measureResult = _app.measureManager.measureAngle(line, line)
-        # _app.measureManager.getOrientedBoundingBox
-        # _ui.messageBox(f'Angle value is {str(measureResult.value)}')
 
         
     except:
