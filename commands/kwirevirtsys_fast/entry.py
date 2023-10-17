@@ -127,39 +127,22 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
     def get_bodies(fusion360_PAimport_data) -> dict[str, adsk.fusion.BRepBody] | None:
         found = {}
-        found_expected_lenght = len(fusion360_PAimport_data["anatomy_structs"])
+        found_count = 0
+        found_expected_count = len(fusion360_PAimport_data["anatomy_structs"])
 
         for anatomy_struct in fusion360_PAimport_data["anatomy_structs"]:
-            futil.log(f"get_bodies: looking for {anatomy_struct}")
-            for i in range(0, _rootComp.allOccurrences.count):
-                occ = _rootComp.allOccurrences.item(i)
+            for occ in _rootComp.allOccurrences:
+                for brb in occ.bRepBodies:
+                    if brb.name == anatomy_struct:
+                        futil.log(f"\tfound!: {anatomy_struct}")
+                        found[anatomy_struct] = brb
+                        found_count += 1
 
-            occ = _rootComp.allOccurrences.itemByName(anatomy_struct)
-            if occ == None:
-                futil.log(f"get_bodies: {anatomy_struct} not found")
-                return None
-            body_comp = occ.component
-            futil.log(f"get_bodies: found {body_comp.name}")
         
-        return None
-
-        # # Iterate over all the root component components.
-        # for i in range(0, _rootComp.allOccurrences.count):
-        #     occ = _rootComp.allOccurrences.item(i)
-        #     body_comp = occ.component
-            
-            
-        #     # Iterate over all of the bodies within the component.
-        #     for j in range(0, comp.bRepBodies.count):
-        #         brb = comp.bRepBodies.item(j)
-        #         if brb.name in fusion360_PAimport_data["anatomy_structs"]:
-        #             found[brb.name] = brb
-        
-        # if len(found) == found_expected_lenght:
-        #     return found
-        # else:
-        #     _ui.messageBox(f"getBodies: found {len(found)} objects instead of {found_expected_lenght}")
-        #     return None
+        if found_count == found_expected_count:
+            return found
+        else:
+            return None
         
     def get_kwire_target_axis(fusion360_PAimport_data) -> adsk.fusion.BRepBody:
         return #!!!
@@ -171,6 +154,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         markers           = get_markers(fusion360_PAimport_data)
         bodies            = get_bodies(fusion360_PAimport_data)
         kwire_target_axis = get_kwire_target_axis(fusion360_PAimport_data)
+        quit()
 
         P1 = trilaterate3D([list(markers["A"].asArray()) + [PA_data["P1A"]/10],
                             list(markers["B"].asArray()) + [PA_data["P1B"]/10],
