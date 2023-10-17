@@ -137,15 +137,21 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         futil.log(f"\tfound!: {anatomy_struct}")
                         found[anatomy_struct] = brb
                         found_count += 1
-
         
         if found_count == found_expected_count:
             return found
         else:
             return None
         
-    def get_kwire_target_axis(fusion360_PAimport_data) -> adsk.fusion.BRepBody:
-        return #!!!
+    def get_kwire_target_axis(fusion360_PAimport_data) -> adsk.fusion.ConstructionAxis | None:
+        for occ in _rootComp.allOccurrences:
+            if occ.name == fusion360_PAimport_data["kwire"]:
+                kwire = occ.component
+                for ca in kwire.constructionAxes:
+                    if ca.name == "k-wire axis":
+                        futil.log(f"\tfound!: {ca.name}")
+                        return ca
+        return None
             
     try:
         inputs = args.command.commandInputs
@@ -154,7 +160,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
         markers           = get_markers(fusion360_PAimport_data)
         bodies            = get_bodies(fusion360_PAimport_data)
         kwire_target_axis = get_kwire_target_axis(fusion360_PAimport_data)
-        quit()
 
         P1 = trilaterate3D([list(markers["A"].asArray()) + [PA_data["P1A"]/10],
                             list(markers["B"].asArray()) + [PA_data["P1B"]/10],
