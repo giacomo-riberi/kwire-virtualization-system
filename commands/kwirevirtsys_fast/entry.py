@@ -298,6 +298,18 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # measure delta distance between kwire and target insertion point
         # measure delta distance between kwire and target insertion point on x/y/z axis ???
         # measure delta depth of insertion (depth difference between PA and target)
+        def find_touch_point(brb: adsk.fusion.BRepBody, line3D: adsk.core.Line3D) -> adsk.core.Point3D:
+            constructionPoints = _rootComp.constructionPoints
+            pointInput = constructionPoints.createInput()
+            pos = line3D.startPoint
+            dir = line3D.asInfiniteLine().direction
+            for i in range(0, 10):
+                pos.translateBy(dir)
+                pointInput.setByPoint(pos)
+                constructionPoints.add(pointInput)
+                _ui.messageBox(f"containment: {brb.pointContainment(pos)}")
+        
+        find_touch_point(skin_brb, kwire_target_line3D)
          
         # https://help.autodesk.com/view/fusion360/ENU/?guid=GUID-393a1edc-08ec-466c-9813-6e3838e020f4
         # consider using the distance to P2 instead of entrance point
