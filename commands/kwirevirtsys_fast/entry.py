@@ -233,9 +233,67 @@ def command_execute(args: adsk.core.CommandEventArgs):
         X_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(1,0,0))
         Y_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,1,0))
         Z_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,0,1))
-        futil.log(f'delta angle X: {delta_angle(kwire_PA_line3D, kwire_target_line3D, X_axis)}') # ??? non so se lo si puo accettare (non sono euler angles)
-        futil.log(f'delta angle Y: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Y_axis)}')
-        futil.log(f'delta angle Z: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Z_axis)}')
+        # futil.log(f'delta angle X: {delta_angle(kwire_PA_line3D, kwire_target_line3D, X_axis)}') # ??? non so se lo si puo accettare (non sono euler angles)
+        # futil.log(f'delta angle Y: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Y_axis)}')
+        # futil.log(f'delta angle Z: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Z_axis)}')
+
+
+        def normalizza(vettore):
+            # Normalizza il vettore per avere lunghezza 1
+            return vettore / np.linalg.norm(vettore)
+
+        def calcola_asse_e_angolo(vettore1, vettore2):
+            # Calcola l'asse e l'angolo tra due vettori
+            vettore1 = normalizza(vettore1)
+            vettore2 = normalizza(vettore2)
+            prodotto_croce = np.cross(vettore1, vettore2)
+            angolo = np.arccos(np.dot(vettore1, vettore2))
+            return prodotto_croce, angolo
+
+        def calcola_matrice_rotazione(asse, angolo):
+            # Calcola la matrice di rotazione data un asse e un angolo
+            c = np.cos(angolo)
+            s = np.sin(angolo)
+            t = 1 - c
+
+            x, y, z = asse
+            matrice = np.array([[t * x * x + c, t * x * y - s * z, t * x * z + s * y],
+                                [t * x * y + s * z, t * y * y + c, t * y * z - s * x],
+                                [t * x * z - s * y, t * y * z + s * x, t * z * z + c]])
+            return matrice
+
+        def ruota_vettore(vettore, matrice_rotazione):
+            # Ruota un vettore usando una matrice di rotazione
+            return np.dot(matrice_rotazione, vettore)
+
+        def allinea_vettori(vettore1, vettore2):
+            # Calcola tre rotazioni successive per allineare due vettori
+            asse1, angolo1 = calcola_asse_e_angolo(vettore1, vettore2)
+            matrice_rotazione1 = calcola_matrice_rotazione(asse1, angolo1)
+            vettore2_rot1 = ruota_vettore(vettore2, matrice_rotazione1)
+
+            asse2, angolo2 = calcola_asse_e_angolo(vettore1, vettore2_rot1)
+            matrice_rotazione2 = calcola_matrice_rotazione(asse2, angolo2)
+            vettore2_rot2 = ruota_vettore(vettore2_rot1, matrice_rotazione2)
+
+            asse3, angolo3 = calcola_asse_e_angolo(vettore1, vettore2_rot2)
+            matrice_rotazione3 = calcola_matrice_rotazione(asse3, angolo3)
+            vettore2_allineato = ruota_vettore(vettore2_rot2, matrice_rotazione3)
+
+            rotazioni = [angolo1, angolo2, angolo3]
+
+            return vettore2_allineato, rotazioni
+
+        # Esempio d'uso
+        futil.log(f"Vettore 1 xyz: {kwire_PA_vector3D.asArray()}")
+        futil.log(f"Vettore 2 xyz: {kwire_target_vector3D.asArray()}")
+        vettore1 = np.array(kwire_PA_vector3D.asArray())
+        vettore2 = np.array(kwire_target_vector3D.asArray())
+
+        vettore2_allineato, rotazioni = allinea_vettori(vettore1, vettore2)
+        futil.log(f"Vettore 1: {vettore1}")
+        futil.log(f"Vettore 2 allineato: {vettore2_allineato}")
+        futil.log(f"Rotazioni sui tre assi: {[x*K_radang for x in rotazioni]}")
 
         # measure delta distance between kwire and target insertion point
         # measure delta distance between kwire and target insertion point on x/y/z axis ???
