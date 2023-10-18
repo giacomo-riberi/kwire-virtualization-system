@@ -165,12 +165,22 @@ def command_execute(args: adsk.core.CommandEventArgs):
         return None
     
     def createAxis_by_Line3D(l: adsk.core.Line3D) -> bool:
-            "create visible construction axis from a line 3D"
-            if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
-                axes = _rootComp.constructionAxes
-                axisInput = axes.createInput()
-                axisInput.setByLine(l.asInfiniteLine())
-                return axes.add(axisInput)
+        "create visible construction axis from a line 3D"
+        if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
+            axes = _rootComp.constructionAxes
+            axisInput = axes.createInput()
+            axisInput.setByLine(l.asInfiniteLine())
+            return axes.add(axisInput)
+    
+    def delta_angle(a: adsk.core.Line3D, b: adsk.core.Line3D, axis: adsk.core.Line3D) -> float:
+        "calculates delta angle of a from b on the specified axis"
+        aax = _app.measureManager.measureAngle(a, axis).value * K_radang
+        if aax > 90:
+            aax = 180-aax
+        bax = _app.measureManager.measureAngle(b, axis).value * K_radang
+        if bax > 90:
+            bax = 180-bax
+        return aax - bax
             
     try:
         inputs = args.command.commandInputs
@@ -181,6 +191,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         skin_brb          = get_skin()
         kwire_target_brb, kwire_target_cpo, kwire_target_cpe = get_kwire_target(fusion360_PAimport_data)
         kwire_target_line3D = adsk.core.Line3D.create(kwire_target_cpo, kwire_target_cpe)
+        kwire_target_vector3D = adsk.core.Vector3D.create(kwire_target_cpe.x-kwire_target_cpo.x, kwire_target_cpe.y-kwire_target_cpo.y, kwire_target_cpe.z-kwire_target_cpo.z)
 
         # kwire_PA_cpo (construction point outer (end))
         P1 = trilaterate3D([list(markers["A"].asArray()) + [PA["P1A"]/10],
@@ -188,12 +199,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
                             list(markers["C"].asArray()) + [PA["P1C"]/10],
                             list(markers["D"].asArray()) + [PA["P1D"]/10]])
         # kwire_PA_cpe (construction point (skin) entrance)
-        P2 = trilaterate3D([list(markers["A"].asArray()) + [PA["P2A"]/10], # add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis
+        P2 = trilaterate3D([list(markers["A"].asArray()) + [PA["P2A"]/10], # add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis (or -(kwirer/2) depending on measuring method)
                             list(markers["B"].asArray()) + [PA["P2B"]/10],
                             list(markers["C"].asArray()) + [PA["P2C"]/10],
                             list(markers["D"].asArray()) + [PA["P2D"]/10]])
 
-        kwire_PA_line3D = adsk.core.Line3D.create(P1, P2)        
+        kwire_PA_line3D = adsk.core.Line3D.create(P1, P2)
+        kwire_PA_vector3D = adsk.core.Vector3D.create(P2.x-P1.x, P2.y-P1.y, P2.z-P1.z)
 
         kwire_PA_brb = create_cylinder(
                         fusion360_PAimport_data["PA"]["id"],
@@ -214,15 +226,20 @@ def command_execute(args: adsk.core.CommandEventArgs):
             futil.log(f'dist value {anatomy_brb.name}: {a:.3f} mm -> target is: {b:.3f} mm')
 
         # ++++ measure delta angle between kwire and target axis
-        # createAxis_by_Line3D(kwire_PA_line3D)
-        # createAxis_by_Line3D(kwire_target_line3D)
-        futil.log(f'Angle value is {_app.measureManager.measureAngle(kwire_PA_line3D, kwire_target_line3D).value * 57.296}') # convert from radians to degrees
+        K_radang = 57.296 # to convert from radians to degrees
+        futil.log(f'angle value is {_app.measureManager.measureAngle(kwire_PA_line3D, kwire_target_line3D).value * K_radang}') 
 
         # measure delta angle between kwire and target on x/y/z axis
+        X_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(1,0,0))
+        Y_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,1,0))
+        Z_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,0,1))
+        futil.log(f'delta angle X: {delta_angle(kwire_PA_line3D, kwire_target_line3D, X_axis)}') # ??? non so se lo si puo accettare (non sono euler angles)
+        futil.log(f'delta angle Y: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Y_axis)}')
+        futil.log(f'delta angle Z: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Z_axis)}')
+
         # measure delta distance between kwire and target insertion point
         # measure delta distance between kwire and target insertion point on x/y/z axis ???
-        # measure delta depth of insertion (lenght outside of skin difference between kwire P1-P2 and target P1-P2)
-            # \ consider adding calculation kwirel, to get real depth
+        # measure delta depth of insertion (depth difference between PA and target)
          
         # https://help.autodesk.com/view/fusion360/ENU/?guid=GUID-393a1edc-08ec-466c-9813-6e3838e020f4
         # consider using the distance to P2 instead of entrance point
