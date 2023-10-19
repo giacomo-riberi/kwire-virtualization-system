@@ -4,6 +4,7 @@ import traceback
 from ...lib import fusion360utils as futil
 from ... import config
 import json
+import pyperclip
 
 import numpy as np
 
@@ -151,7 +152,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 if brb.name == "skin":
                     return brb
         
-        
     def get_kwire_target(fusion360_PAimport_data) -> tuple[adsk.fusion.BRepBody, adsk.core.Point3D, adsk.core.Point3D] | None:
         for occ in _rootComp.allOccurrences:
             if occ.name == fusion360_PAimport_data["kwire_target"]:
@@ -252,36 +252,56 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         kwirer,
                         kwirel)
         
-        # TODO
-        # record somewhere all the stats (following lines) of target kwires
-
         # ++++ measure distance from anatomical structures
+        anatomy_structs_dist = {}
         tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get()
         for name, anatomy_brb in bodies.items():
             futil.log(f'{kwire_target_brb.getPhysicalProperties().centerOfMass.asArray()}')
-            a = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
-            b = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
-            futil.log(f'dist value {anatomy_brb.name}: {a:.3f} mm -> target is: {b:.3f} mm')
+            distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
+            distance_target_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
+            futil.log(f'dist value {anatomy_brb.name}: {distance_PA_anatomybody:.3f} mm')
+            anatomy_structs_dist[anatomy_brb.name] = distance_PA_anatomybody
 
         # ++++ measure delta angle between kwire and target axis
         K_radang = 57.296 # to convert from radians to degrees
-        futil.log(f'angle value is {_app.measureManager.measureAngle(kwire_PA_line3D, kwire_target_line3D).value * K_radang}') 
+        angle_PA_target = _app.measureManager.measureAngle(kwire_PA_line3D, kwire_target_line3D).value * K_radang
+        futil.log(f'angle value is {angle_PA_target}')
 
-        # measure delta distance between kwire and target insertion point
+        # ++++ measure delta distance between kwire and target insertion point
         kwire_PA_enterpoint_estimated_p3d = intersect_point(skin_brb, kwire_PA_line3D.startPoint, kwire_PA_vector3D, 200, 8)
         kwire_PA_enterpoint_estimated_cp = createPoint_by_point3D(kwire_PA_enterpoint_estimated_p3d)
         kwire_PA_enterpoint_estimated_cp.name = f"{PA['id']} entrance estimated"
-        futil.log(f'distance PA entrance to target entrance: {kwire_target_cpe_p3d.distanceTo(kwire_PA_enterpoint_estimated_p3d)*10} mm')
+        distance_PAep_targetep = kwire_target_cpe_p3d.distanceTo(kwire_PA_enterpoint_estimated_p3d)*10
+        futil.log(f'distance PA entrance point to target entrance point: {distance_PAep_targetep} mm')
         
-        # measure delta distance between kwire and target insertion point on x/y/z axis
-        futil.log(f'distance PA entrance to target entrance X: {(kwire_target_cpe_p3d.x - kwire_PA_enterpoint_estimated_p3d.x)*10} mm')
-        futil.log(f'distance PA entrance to target entrance Y: {(kwire_target_cpe_p3d.y - kwire_PA_enterpoint_estimated_p3d.y)*10} mm')
-        futil.log(f'distance PA entrance to target entrance Z: {(kwire_target_cpe_p3d.z - kwire_PA_enterpoint_estimated_p3d.z)*10} mm')
+        # ++++ measure delta distance between kwire and target insertion point on x/y/z axis
+        distance_PAep_targetep_X = (kwire_target_cpe_p3d.x - kwire_PA_enterpoint_estimated_p3d.x)*10
+        distance_PAep_targetep_Y = (kwire_target_cpe_p3d.y - kwire_PA_enterpoint_estimated_p3d.y)*10
+        distance_PAep_targetep_Z = (kwire_target_cpe_p3d.z - kwire_PA_enterpoint_estimated_p3d.z)*10
+        futil.log(f'distance PA entrance to target entrance X: {distance_PAep_targetep_X} mm')
+        futil.log(f'distance PA entrance to target entrance Y: {distance_PAep_targetep_Y} mm')
+        futil.log(f'distance PA entrance to target entrance Z: {distance_PAep_targetep_Z} mm')
         
-        # measure delta depth of insertion (depth difference between PA and target)
+        # ++++ measure delta depth of insertion (depth difference between PA and target)
         kwire_target_insertion_depth_mm = kwirel - (kwire_target_cpe_p3d.distanceTo(kwire_target_cpo_p3d)*10)
         kwire_PA_insertion_depth_mm = kwirel - (P1_p3d.distanceTo(kwire_PA_enterpoint_estimated_p3d)*10)
-        futil.log(f'delta insertion (+ means more out of the skin ): {kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm} mm')
+        distance_delta_insertion_depth_PA_target = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
+        futil.log(f'delta insertion (+ means more out of the skin ): {distance_delta_insertion_depth_PA_target} mm')
+        
+        # string to inport data into AR kwire placement test companion
+        fusion_data = {
+            "PA_id": PA['id'],
+            "anatomy_structs_dist": anatomy_structs_dist,
+            "angle_PA_target": angle_PA_target,
+            "distance_PAep_targetep": distance_PAep_targetep,
+            "distance_PAep_targetep_X": distance_PAep_targetep_X,
+            "distance_PAep_targetep_Y": distance_PAep_targetep_Y,
+            "distance_PAep_targetep_Z": distance_PAep_targetep_Z,
+            "distance_delta_insertion_depth_PA_target": distance_delta_insertion_depth_PA_target
+        }
+        fusion_data_str = json.dumps(fusion_data)
+        futil.log(f'import this into companion (already copied in clipboard): \n{fusion_data_str}')
+        pyperclip.copy(fusion_data_str)
 
         # measure delta angle between kwire and target on x/y/z axis
         X_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(1,0,0))
