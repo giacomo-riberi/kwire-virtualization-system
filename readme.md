@@ -1,8 +1,2 @@
-CHECK PYTHON INSTALL PATH:
-import os
-os.getcwd()
-
-INSTALL NUMPY:
-PS C:\Users\Giacomo\AppData\Local\Autodesk\webdeploy\production\ab436cfc442dca0a34652534c345f2bd00e2ba64\Python>
-    ./python.exe -m pip install --target=.\Lib numpy --upgrade
-    ./python.exe -m pip install --target=.\Lib pyperclip --upgrade
+INSTALL DEPENDENCIES (run it in fusion and paste it on terminal):
+import os; print("cd", end=" "); os.getcwd(); print("\n .\python\python.exe -m pip install --upgrade --target=.\python\Lib numpy pyperclip")
