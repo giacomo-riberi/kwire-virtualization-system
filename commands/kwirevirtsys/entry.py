@@ -245,7 +245,7 @@ def create_cylinder(rootComp: adsk.fusion.Component, p1, p2, r, lenght):
 
         plane1.deleteMe()
         sketch1.deleteMe()
-        # ext.dissolve() //!!!
+        ext.dissolve()
 
         # axes = rootComp.constructionAxes
         # axisInput = axes.createInput()  
