@@ -134,7 +134,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             for occ in _rootComp.allOccurrences:
                 for brb in occ.bRepBodies:
                     if brb.name == k:
-                        futil.log(f"\tfound!: {k}")
+                        futil.log(f"\tfound anatomy struct {k} in {occ.name}")
                         found[k] = brb
                         found_count += 1
         
