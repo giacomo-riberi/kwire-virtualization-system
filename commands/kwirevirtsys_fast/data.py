@@ -19,8 +19,11 @@ class PAdata(data_elaboration):
     ECP_number: int
     PA_number: int
     success: bool
-    PAD: float
-    PAR: float
+    PA_D: float
+    PA_RESD: float; "PA radiation entrance surface dose"
+    PA_RDAP: float; "PA radiation dose-area product"    # do we want to record that? !!!
+    PA_RmAs: float; "PA radiation milliampere-seconds"  # do we want to record that? !!!
+    PA_RkVp: float; "PA radiation kilovoltage peak"     # do we want to record that? !!!
     P1A: float
     P1B: float
     P1C: float
@@ -29,6 +32,9 @@ class PAdata(data_elaboration):
     P2B: float
     P2C: float
     P2D: float
+    confidence_position: float
+    confidence_angle: float
+    estimate_hit: bool
     ktarget: str; "k-wire target component name on fusion 360"
     markers: dict[str, str]
     fusion_computed: bool; "analyzed by fusion 360"
