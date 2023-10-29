@@ -282,8 +282,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_target_insertion_depth_mm = kwirel - (kwire_target_cpe_p3d.distanceTo(kwire_target_cpo_p3d)*10)
         kwire_PA_insertion_depth_mm = kwirel - (P1_p3d.distanceTo(kwire_PA_enterpoint_estimated_p3d)*10)
         
-        PA_data.distance_id_kPA_ktarget = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
-        futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.distance_id_kPA_ktarget} mm')
+        PA_data.delta_id_kPA_ktarget = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
+        futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_kPA_ktarget} mm')
         
         PA_data.fusion_computed = True
         PA_data_str = PA_data.dumps()
