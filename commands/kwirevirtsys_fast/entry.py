@@ -138,11 +138,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         found[k] = brb
                         found_count += 1
         
-        return found
-        # if found_count == found_expected_count: # !!! add again
-        #     return found
-        # else:
-        #     return None
+        if found_count == found_expected_count:
+            return found
+        else:
+            return None
     
     def get_skin() -> adsk.fusion.BRepBody | None:
         for occ in _rootComp.allOccurrences:
