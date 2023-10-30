@@ -39,7 +39,7 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 local_handlers = []
 
 kwirer: float = 0.08 # kwire radius in cm
-kwirel: float = 11.0 # kwire lenght in cm
+kwirel: float = 10.8 # kwire lenght in cm
 
 # Executed when add-in is run.
 def start():
