@@ -14,6 +14,7 @@ class PAdata(data_elaboration):
     TEST_id: int
     ECP_id: int
     id: int
+    comment: str; "used to mark data on database for later technical analysis"
     time_init: float
     phase: str
     ECP_number: int
