@@ -5,6 +5,8 @@ from ...lib import fusion360utils as futil
 from ... import config
 import json
 import pyperclip
+from itertools import combinations
+import math
 
 import numpy as np
 from . import data
@@ -138,9 +140,11 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         found[k] = brb
                         found_count += 1
         
+        return found #!!!
         if found_count == found_expected_count:
             return found
         else:
+            futil.log(f"\tfound unexpected number of anatomy structs")
             return None
     
     def get_skin() -> adsk.fusion.BRepBody | None:
@@ -161,24 +165,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         cpe.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
                         return kwire.bRepBodies.itemByName("filo"), cpo, cpe
         return None
-    
-    def createAxis_by_Line3D(l: adsk.core.Line3D) -> adsk.fusion.ConstructionAxis:
-        "create visible construction axis from a line 3D"
-        if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
-            axes = _rootComp.constructionAxes
-            axisInput = axes.createInput()
-            axisInput.setByLine(l.asInfiniteLine())
-            return axes.add(axisInput)
-    
-    def createPoint_by_point3D(p: adsk.core.Point3D, name="") -> adsk.fusion.ConstructionPoint:
-        "create visible construction point from a point 3D"
-        points = _rootComp.constructionPoints
-        pointsInput = points.createInput()
-        pointsInput.setByPoint(p)
-        pc = points.add(pointsInput)
-        if name != "":
-            pc.name = name
-        return pc
 
     def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int) -> adsk.core.Point3D | None:
         "estimate point of intersection of a vector starting from P through a body"
@@ -220,19 +206,23 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_target_vector3D = adsk.core.Vector3D.create(kwire_target_cpe_p3d.x-kwire_target_cpo_p3d.x, kwire_target_cpe_p3d.y-kwire_target_cpo_p3d.y, kwire_target_cpe_p3d.z-kwire_target_cpo_p3d.z)
         kwire_target_vector3D.normalize()
 
+        # TODO: add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis (or -(kwirer/2) depending on measuring method)
         # kwire_PA_cpo (construction point outer (end))
-        P1_p3d = trilaterate3D([list(markers["A"].asArray()) + [PA_data.P1A/10],
-                            list(markers["B"].asArray()) + [PA_data.P1B/10],
-                            list(markers["C"].asArray()) + [PA_data.P1C/10],
-                            list(markers["D"].asArray()) + [PA_data.P1D/10]])
+        P1_p3d, P1_mean, P1_SD, P1_SE = trilaterate3D_4spheres(
+                        markers["A"], PA_data.P1A/10,
+                        markers["B"], PA_data.P1B/10,
+                        markers["C"], PA_data.P1C/10,
+                        markers["D"], PA_data.P1D/10)
+        
         # kwire_PA_cpe (construction point (skin) entrance)
-        P2_p3d = trilaterate3D([list(markers["A"].asArray()) + [PA_data.P2A/10], # add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis (or -(kwirer/2) depending on measuring method)
-                            list(markers["B"].asArray()) + [PA_data.P2B/10],
-                            list(markers["C"].asArray()) + [PA_data.P2C/10],
-                            list(markers["D"].asArray()) + [PA_data.P2D/10]])
+        P2_p3d, P2_mean, P2_SD, P2_SE = trilaterate3D_4spheres(
+                        markers["A"], PA_data.P2A/10,
+                        markers["B"], PA_data.P2B/10,
+                        markers["C"], PA_data.P2C/10,
+                        markers["D"], PA_data.P2D/10)
 
         _ = createPoint_by_point3D(P1_p3d, f"{PA_data.id} P1")
-        _ = createPoint_by_point3D(P2_p3d, f"{PA_data.id} P1")
+        _ = createPoint_by_point3D(P2_p3d, f"{PA_data.id} P2")
 
         kwire_PA_line3D = adsk.core.Line3D.create(P1_p3d, P2_p3d)
         kwire_PA_vector3D = adsk.core.Vector3D.create(P2_p3d.x-P1_p3d.x, P2_p3d.y-P1_p3d.y, P2_p3d.z-P1_p3d.z)
@@ -360,39 +350,126 @@ def command_execute(args: adsk.core.CommandEventArgs):
         _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
-# funziona al 99%
-def trilaterate3D(distances) -> adsk.core.Point3D:
+def createAxis_by_Line3D(l: adsk.core.Line3D) -> adsk.fusion.ConstructionAxis:
+        "create visible construction axis from a line 3D"
+        if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
+            axes = _rootComp.constructionAxes
+            axisInput = axes.createInput()
+            axisInput.setByLine(l.asInfiniteLine())
+            return axes.add(axisInput)
+    
+def createPoint_by_point3D(p: adsk.core.Point3D, name="") -> adsk.fusion.ConstructionPoint:
+    "create visible construction point from a point 3D"
+    points = _rootComp.constructionPoints
+    pointsInput = points.createInput()
+    pointsInput.setByPoint(p)
+    pc = points.add(pointsInput)
+    if name != "":
+        pc.name = name
+    return pc
+
+def trilaterate3D_4spheres(
+        A:  adsk.core.Point3D,
+        PA: float,
+        B:  adsk.core.Point3D,
+        PB: float,
+        C:  adsk.core.Point3D,
+        PC: float,
+        D:  adsk.core.Point3D,
+        PD: float
+        ) -> tuple[adsk.core.Point3D, float, float, float]:
+    "returns the trilateration midpoint and error statistics of all the possible combinations of 3 starting from 4 spheres"
+    
+    points: list[adsk.core.Point3D] = []
     try:
-        p1=np.array(distances[0][:3])
-        p2=np.array(distances[1][:3])
-        p3=np.array(distances[2][:3])       
-        p4=np.array(distances[3][:3])
-        r1=distances[0][-1]
-        r2=distances[1][-1]
-        r3=distances[2][-1]
-        r4=distances[3][-1]
-        e_x=(p2-p1)/np.linalg.norm(p2-p1)
-        i=np.dot(e_x,(p3-p1))
-        e_y=(p3-p1-(i*e_x))/(np.linalg.norm(p3-p1-(i*e_x)))
+        # we have 4 markers and 4 distances, trilaterate each combination of them to get 4x2=8 sphere intersection points.
+        # (3 intersecting spheres have 2 points in common, except for edgecases)
+        points.extend(trilaterate3D(A, PA, B, PB, C, PC))
+        points.extend(trilaterate3D(A, PA, B, PB, D, PD))
+        points.extend(trilaterate3D(A, PA, C, PC, D, PD))
+        points.extend(trilaterate3D(B, PB, C, PC, D, PD))
+
+        # make all possible combination groups of 4 out of 8 intersection points
+        # (the objective is to find the group (cluster) of which points are the closest to eachother)
+        groups = list(combinations(points, 4))
+
+        def calc_group_dist(
+                group: tuple[adsk.core.Point3D, adsk.core.Point3D, adsk.core.Point3D, adsk.core.Point3D]
+                ) -> float:
+            return  group[0].distanceTo(group[1])*10 + \
+                    group[0].distanceTo(group[2])*10 + \
+                    group[0].distanceTo(group[3])*10 + \
+                    group[1].distanceTo(group[2])*10 + \
+                    group[1].distanceTo(group[3])*10 + \
+                    group[2].distanceTo(group[3])*10
+
+        # run through all combination groups to find the one with the most grouped points
+        cluster = groups[0]
+        for group in groups:
+            if calc_group_dist(group) < calc_group_dist(cluster):
+                cluster = group
+                
+        # _ = [createPoint_by_point3D(point) for point in cluster] # debug
+        
+        # compute the cluster center point
+        cluster_center = adsk.core.Point3D.create(
+            (cluster[0].x + cluster[1].x + cluster[2].x + cluster[3].x)/4,
+            (cluster[0].y + cluster[1].y + cluster[2].y + cluster[3].y)/4,
+            (cluster[0].z + cluster[1].z + cluster[2].z + cluster[3].z)/4
+        )
+        # _ = createPoint_by_point3D(cluster_center, "cluster_center") # debug
+
+        # compute measurement error statistics
+        cluster_center_dists = [cluster_center.distanceTo(cluster[0])*10, cluster_center.distanceTo(cluster[1])*10, cluster_center.distanceTo(cluster[2])*10, cluster_center.distanceTo(cluster[3])*10]
+        mean = sum(cluster_center_dists) / len(cluster_center_dists)
+        squared_diff = [(x - mean) ** 2 for x in cluster_center_dists]
+        variance = sum(squared_diff) / (len(cluster_center_dists) - 1)
+        std_deviation = math.sqrt(variance)
+        std_error = std_deviation / math.sqrt(len(cluster_center_dists))
+
+        # debug
+        # futil.log(f"Mean: {mean} mm")
+        # futil.log(f"Standard Deviation: {std_deviation} mm")
+        # futil.log(f"Standard Error: {std_error} mm")
+
+        return cluster_center, mean, std_deviation, std_error
+        
+
+    except Exception as e:
+        _ui.messageBox(f"trilaterate3D_err: {e.__traceback__.tb_lineno}\n\nerror: {e}")
+
+    return 
+
+def trilaterate3D(
+        m1:  adsk.core.Point3D, # marker point
+        m1P: float,             # marker point distance to trilateration point
+        m2:  adsk.core.Point3D,
+        m2P: float,
+        m3:  adsk.core.Point3D,
+        m3P: float
+) -> list[adsk.core.Point3D]:
+    "returns the 2 intersection points of the 3 spheres"
+
+    try:
+        m1np=np.array(m1.asArray())
+        m2np=np.array(m2.asArray())
+        m3np=np.array(m3.asArray())       
+        e_x=(m2np-m1np)/np.linalg.norm(m2np-m1np)
+        i=np.dot(e_x,(m3np-m1np))
+        e_y=(m3np-m1np-(i*e_x))/(np.linalg.norm(m3np-m1np-(i*e_x)))
         e_z=np.cross(e_x,e_y)
-        d=np.linalg.norm(p2-p1)
-        j=np.dot(e_y,(p3-p1))
-        x=((r1**2)-(r2**2)+(d**2))/(2*d)
-        y=(((r1**2)-(r3**2)+(i**2)+(j**2))/(2*j))-((i/j)*(x))
-        z1=np.sqrt(r1**2-x**2-y**2)
-        z2=np.sqrt(r1**2-x**2-y**2)*(-1)
-        ans1=p1+(x*e_x)+(y*e_y)+(z1*e_z)
-        ans2=p1+(x*e_x)+(y*e_y)+(z2*e_z)
-        dist1=np.linalg.norm(p4-ans1)
-        dist2=np.linalg.norm(p4-ans2)
+        d=np.linalg.norm(m2np-m1np)
+        j=np.dot(e_y,(m3np-m1np))
+        x=((m1P**2)-(m2P**2)+(d**2))/(2*d)
+        y=(((m1P**2)-(m3P**2)+(i**2)+(j**2))/(2*j))-((i/j)*(x))
+        z1=np.sqrt(m1P**2-x**2-y**2)
+        z2=np.sqrt(m1P**2-x**2-y**2)*(-1)
+        ans1=m1np+(x*e_x)+(y*e_y)+(z1*e_z)
+        ans2=m1np+(x*e_x)+(y*e_y)+(z2*e_z)
     except Exception as e:
         _ui.messageBox(f"trilaterate3D: {e.__traceback__.tb_lineno}\n\nerror: {e}")
 
-    if np.abs(r4-dist1) < np.abs(r4-dist2):
-        return adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2])
-    else:
-        return adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])
-
+    return [adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2]), adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])]
 
 def create_cylinder(id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: float, lenght: float) -> adsk.fusion.BRepBody:
     try:
