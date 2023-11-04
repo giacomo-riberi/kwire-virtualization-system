@@ -104,6 +104,44 @@ def command_activate(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME}: Command Activate Event')
         
 
+# This event handler is called when the command needs to compute a new preview in the graphics window.
+def command_preview(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME}: Command Preview Event')
+    inputs = args.command.commandInputs
+
+
+# This event handler is called when the user changes anything in the command dialog
+# allowing you to modify values of other inputs based on that change.
+def command_input_changed(args: adsk.core.InputChangedEventArgs):
+    futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
+
+
+# This event handler is called when the user interacts with any of the inputs in the dialog
+# which allows you to verify that all of the inputs are valid and enables the OK button.
+def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME}: Validate Input Event')
+
+    inputs = args.inputs
+    
+    # Verify the validity of the input values. This controls if the OK button is enabled or not.
+    valueInput = inputs.itemById('value_input')
+    if args.areInputsValid or valueInput.value >= 0:
+        args.areInputsValid = True
+    else:
+        args.areInputsValid = False
+        
+
+# This event handler is called when the command terminates.
+def command_destroy(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME}: Command Destroy Event')
+
+    global local_handlers
+    local_handlers = []
+
+
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
@@ -350,6 +388,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
         _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
+######################## TOOLS ########################
+
 def createAxis_by_Line3D(l: adsk.core.Line3D) -> adsk.fusion.ConstructionAxis:
         "create visible construction axis from a line 3D"
         if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
@@ -501,41 +541,3 @@ def create_cylinder(id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: fl
         
     except Exception as e:
         _ui.messageBox(f"create_cylinder: {e.__traceback__.tb_lineno}\n\nerror: {e}")
-
-
-# This event handler is called when the command needs to compute a new preview in the graphics window.
-def command_preview(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME}: Command Preview Event')
-    inputs = args.command.commandInputs
-
-
-# This event handler is called when the user changes anything in the command dialog
-# allowing you to modify values of other inputs based on that change.
-def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    futil.log(f'{CMD_NAME}: Changed input: {args.input.id}')
-
-
-# This event handler is called when the user interacts with any of the inputs in the dialog
-# which allows you to verify that all of the inputs are valid and enables the OK button.
-def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME}: Validate Input Event')
-
-    inputs = args.inputs
-    
-    # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInput = inputs.itemById('value_input')
-    if args.areInputsValid or valueInput.value >= 0:
-        args.areInputsValid = True
-    else:
-        args.areInputsValid = False
-        
-
-# This event handler is called when the command terminates.
-def command_destroy(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME}: Command Destroy Event')
-
-    global local_handlers
-    local_handlers = []
