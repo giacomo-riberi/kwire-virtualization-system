@@ -222,15 +222,15 @@ def command_execute(args: adsk.core.CommandEventArgs):
                     return intersect_point(brb, pOut, dir, maxtests, precision-1)
             pOut = P.copy()
     
-    def delta_angle(a: adsk.core.Line3D, b: adsk.core.Line3D, axis: adsk.core.Line3D) -> float: # NOTWORKING
-        "calculates delta angle of a from b on the specified axis"
-        aax = _app.measureManager.measureAngle(a, axis).value * K_radang
-        if aax > 90:
-            aax = 180-aax
-        bax = _app.measureManager.measureAngle(b, axis).value * K_radang
-        if bax > 90:
-            bax = 180-bax
-        return aax - bax
+    # def delta_angle(a: adsk.core.Line3D, b: adsk.core.Line3D, axis: adsk.core.Line3D) -> float: # NOTWORKING
+    #     "calculates delta angle of a from b on the specified axis"
+    #     aax = _app.measureManager.measureAngle(a, axis).value * K_radang
+    #     if aax > 90:
+    #         aax = 180-aax
+    #     bax = _app.measureManager.measureAngle(b, axis).value * K_radang
+    #     if bax > 90:
+    #         bax = 180-bax
+    #     return aax - bax
             
     try:
         inputs = args.command.commandInputs
@@ -244,7 +244,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_target_vector3D = adsk.core.Vector3D.create(kwire_target_cpe_p3d.x-kwire_target_cpo_p3d.x, kwire_target_cpe_p3d.y-kwire_target_cpo_p3d.y, kwire_target_cpe_p3d.z-kwire_target_cpo_p3d.z)
         kwire_target_vector3D.normalize()
 
-        # TODO: add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis (or -(kwirer/2) depending on measuring method)
+        # TODO !!!: add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis (or -(kwirer/2) depending on measuring method)
         # kwire_PA_cpo (construction point outer (end))
         P1_p3d, P1_mean, P1_SD, P1_SE = trilaterate3D_4spheres(
                         markers["A"], PA_data.P1A/10,
@@ -258,6 +258,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         markers["B"], PA_data.P2B/10,
                         markers["C"], PA_data.P2C/10,
                         markers["D"], PA_data.P2D/10)
+        
+        PA_data.P1_mean = P1_mean
+        PA_data.P1_SD   = P1_SD
+        PA_data.P1_SE   = P1_SE
+        PA_data.P2_mean = P2_mean
+        PA_data.P2_SD   = P2_SD
+        PA_data.P2_SE   = P2_SE
 
         _ = createPoint_by_point3D(P1_p3d, f"{PA_data.id} P1")
         _ = createPoint_by_point3D(P2_p3d, f"{PA_data.id} P2")
@@ -281,7 +288,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
             distance_target_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
             
-            PA_data.anatomy[anatomy_brb.name] = distance_PA_anatomybody
+            PA_data.anatomy[anatomy_brb.name] = round(distance_PA_anatomybody, 3)
             futil.log(f'dist value {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm')
 
         # ++++ measure delta angle between kwire and target axis
@@ -468,11 +475,11 @@ def trilaterate3D_4spheres(
         std_error = std_deviation / math.sqrt(len(cluster_center_dists))
 
         # debug
-        # futil.log(f"Mean: {mean} mm")
-        # futil.log(f"Standard Deviation: {std_deviation} mm")
-        # futil.log(f"Standard Error: {std_error} mm")
+        futil.log(f"Mean: {mean} mm")
+        futil.log(f"Standard Deviation: {std_deviation} mm")
+        futil.log(f"Standard Error: {std_error} mm")
 
-        return cluster_center, mean, std_deviation, std_error
+        return cluster_center, round(mean, 3), round(std_deviation, 3), round(std_error, 3)
         
 
     except Exception as e:
