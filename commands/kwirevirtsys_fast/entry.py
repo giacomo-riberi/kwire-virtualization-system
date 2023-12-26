@@ -265,7 +265,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         markers["D"], PA_data.P2D/10)
 
         kwire_PA_P1P2 = adsk.core.Line3D.create(kwire_PA_P1, kwire_PA_P2)
-        kwire_PA_vector = adsk.core.Vector3D.create(kwire_PA_P2.x-kwire_PA_P1.x, kwire_PA_P2.y-kwire_PA_P1.y, kwire_PA_P2.z-kwire_PA_P1.z)
+        kwire_PA_vector = kwire_PA_P1.vectorTo(kwire_PA_P2)
         kwire_PA_vector.normalize()
         kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1P2.startPoint, kwire_PA_vector, 200, 8)
         _ = createPoint_by_point3D(kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
@@ -294,7 +294,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ++++ measure distance from anatomical structures
         tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get()
         for name, anatomy_brb in bodies.items():
-            distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10            
+            distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
             PA_data.anatomy[anatomy_brb.name] = round(distance_PA_anatomybody, 3)
             futil.log(f'dist value {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm')
 
