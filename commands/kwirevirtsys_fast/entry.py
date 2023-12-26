@@ -159,7 +159,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 futil.log(f"getMarkers: {marker_name} not found")
                 return None
 
-            cp = occ.component.constructionPoints.itemByName("centerpoint").geometry            
+            cp = occ.component.originConstructionPoint.geometry            
             cp.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
             found[marker_letter] = cp
         
@@ -178,7 +178,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         found[k] = brb
                         found_count += 1
         
-        return found #!!!
         if found_count == found_expected_count:
             return found
         else:
@@ -191,28 +190,39 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 if brb.name == "skin":
                     return brb
         
-    def get_kwire_target(PA_data: data.PAdata) -> tuple[adsk.fusion.BRepBody, adsk.core.Point3D, adsk.core.Point3D] | None:
+    def get_kwire_target(PA_data: data.PAdata) -> tuple[adsk.fusion.Component, adsk.fusion.BRepBody, adsk.core.Point3D, adsk.core.Vector3D] | None:
+        "returns normalized vector"
+        
         for occ in _rootComp.allOccurrences:
             if occ.name == PA_data.ktarget:
                 kwire = occ.component
-                for ca in kwire.constructionAxes:
-                    if ca.name == "k-wire axis":
-                        cpo = kwire.constructionPoints.itemByName("outer end point").geometry
-                        cpe = kwire.constructionPoints.itemByName("skin entrance point").geometry
-                        cpo.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
-                        cpe.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
-                        return kwire.bRepBodies.itemByName("filo"), cpo, cpe
+
+                p1 = kwire.constructionPoints.itemByName("p1").geometry
+                p1.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+
+                _, _, vector = kwire.xConstructionAxis.geometry.getData()
+                vector.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+                vector.normalize()
+                
+                return kwire, kwire.bRepBodies.itemByName("filo"), p1, vector
         return None
 
-    def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int) -> adsk.core.Point3D | None:
-        "estimate point of intersection of a vector starting from P through a body"
+    def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int, precisionStart: int = None) -> adsk.core.Point3D | None:
+        "estimate point of intersection of a vector starting from P through a body; dir should be normalized"
+
+        if precisionStart == None:
+            precisionStart = precision
+        
         pOut = P.copy()
         while True:
             maxtests -= 1
             P.translateBy(dir)
             # createPoint_by_point3D(P) # debug
             # futil.log(f"precision: {precision} - maxtests: {maxtests} - containment: {brb.pointContainment(P)}") # debug
-            if maxtests < 0:
+            if maxtests < 0 and precision == precisionStart:
+                # point was not found
+                return None
+            if maxtests < 0 and precision != precisionStart:
                 return P
             if brb.pointContainment(P) == 0: # entered the body
                 if precision == 0:
@@ -221,100 +231,99 @@ def command_execute(args: adsk.core.CommandEventArgs):
                     dir.scaleBy(0.1)
                     return intersect_point(brb, pOut, dir, maxtests, precision-1)
             pOut = P.copy()
-    
-    # def delta_angle(a: adsk.core.Line3D, b: adsk.core.Line3D, axis: adsk.core.Line3D) -> float: # NOTWORKING
-    #     "calculates delta angle of a from b on the specified axis"
-    #     aax = _app.measureManager.measureAngle(a, axis).value * K_radang
-    #     if aax > 90:
-    #         aax = 180-aax
-    #     bax = _app.measureManager.measureAngle(b, axis).value * K_radang
-    #     if bax > 90:
-    #         bax = 180-bax
-    #     return aax - bax
             
     try:
         inputs = args.command.commandInputs
 
+
+        # -------------------------- DATA JSON ------------------------- #
         PA_data = data.PAdata(**json.loads(adsk.core.StringValueCommandInput.cast(inputs.itemById('PA_data_str')).value))
         markers           = get_markers(PA_data)
         bodies            = get_anatomy_structs(PA_data)
         skin_brb          = get_skin()
-        kwire_target_brb, kwire_target_cpo_p3d, kwire_target_cpe_p3d = get_kwire_target(PA_data)
-        kwire_target_line3D = adsk.core.Line3D.create(kwire_target_cpo_p3d, kwire_target_cpe_p3d)
-        kwire_target_vector3D = adsk.core.Vector3D.create(kwire_target_cpe_p3d.x-kwire_target_cpo_p3d.x, kwire_target_cpe_p3d.y-kwire_target_cpo_p3d.y, kwire_target_cpe_p3d.z-kwire_target_cpo_p3d.z)
-        kwire_target_vector3D.normalize()
 
-        # TODO !!!: add to all 4 `+(kwirer/2)` to compensate for not measuring from kwire center axis (or -(kwirer/2) depending on measuring method)
-        # kwire_PA_cpo (construction point outer (end))
-        P1_p3d, P1_mean, P1_SD, P1_SE = trilaterate3D_4spheres(
+
+        # ------------------------ KWIRE TARGET ------------------------ #
+        kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_vector = get_kwire_target(PA_data)
+        kwire_target_P2_estimated = intersect_point(skin_brb, kwire_target_P1, kwire_target_vector, 200, 8)
+        kwire_target_P1P2 = adsk.core.Line3D.create(kwire_target_P1, kwire_target_comp.originConstructionPoint.geometry)
+
+
+        # -------------------------- KWIRE PA -------------------------- #
+
+        kwire_PA_P1, kwire_PA_P1_mean, kwire_PA_P1_SD, kwire_PA_P1_SE = trilaterate3D_4spheres(
                         markers["A"], PA_data.P1A/10,
                         markers["B"], PA_data.P1B/10,
                         markers["C"], PA_data.P1C/10,
                         markers["D"], PA_data.P1D/10)
         
         # kwire_PA_cpe (construction point (skin) entrance)
-        P2_p3d, P2_mean, P2_SD, P2_SE = trilaterate3D_4spheres(
+        kwire_PA_P2, kwire_PA_P2_mean, kwire_PA_P2_SD, kwire_PA_P2_SE = trilaterate3D_4spheres(
                         markers["A"], PA_data.P2A/10,
                         markers["B"], PA_data.P2B/10,
                         markers["C"], PA_data.P2C/10,
                         markers["D"], PA_data.P2D/10)
-        
-        PA_data.P1_mean = P1_mean
-        PA_data.P1_SD   = P1_SD
-        PA_data.P1_SE   = P1_SE
-        PA_data.P2_mean = P2_mean
-        PA_data.P2_SD   = P2_SD
-        PA_data.P2_SE   = P2_SE
 
-        _ = createPoint_by_point3D(P1_p3d, f"{PA_data.id} P1")
-        _ = createPoint_by_point3D(P2_p3d, f"{PA_data.id} P2")
-
-        kwire_PA_line3D = adsk.core.Line3D.create(P1_p3d, P2_p3d)
-        kwire_PA_vector3D = adsk.core.Vector3D.create(P2_p3d.x-P1_p3d.x, P2_p3d.y-P1_p3d.y, P2_p3d.z-P1_p3d.z)
-        kwire_PA_vector3D.normalize()
-        kwire_PA_caxis = createAxis_by_Line3D(kwire_PA_line3D) # log
-        kwire_PA_caxis.name = f"{PA_data.id} axis"
+        kwire_PA_P1P2 = adsk.core.Line3D.create(kwire_PA_P1, kwire_PA_P2)
+        kwire_PA_vector = adsk.core.Vector3D.create(kwire_PA_P2.x-kwire_PA_P1.x, kwire_PA_P2.y-kwire_PA_P1.y, kwire_PA_P2.z-kwire_PA_P1.z)
+        kwire_PA_vector.normalize()
+        kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1P2.startPoint, kwire_PA_vector, 200, 8)
+        _ = createPoint_by_point3D(kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
 
         kwire_PA_brb = create_cylinder(
                         PA_data.id,
-                        P1_p3d,
-                        P2_p3d,
+                        kwire_PA_P1,
+                        kwire_PA_P2,
                         kwirer,
                         kwirel)
+
+        _ = createPoint_by_point3D(kwire_PA_P1, f"{PA_data.id} P1")
+        _ = createPoint_by_point3D(kwire_PA_P2, f"{PA_data.id} P2")
+        
+
+        # ---------------- KWIRE PA VIRTUAL CALCULATIONS --------------- #
+
+        # ++++ register errors of measurement
+        PA_data.P1_mean = kwire_PA_P1_mean
+        PA_data.P1_SD   = kwire_PA_P1_SD
+        PA_data.P1_SE   = kwire_PA_P1_SE
+        PA_data.P2_mean = kwire_PA_P2_mean
+        PA_data.P2_SD   = kwire_PA_P2_SD
+        PA_data.P2_SE   = kwire_PA_P2_SE
         
         # ++++ measure distance from anatomical structures
         tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get()
         for name, anatomy_brb in bodies.items():
-            distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
-            distance_target_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
-            
+            distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10            
             PA_data.anatomy[anatomy_brb.name] = round(distance_PA_anatomybody, 3)
             futil.log(f'dist value {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm')
 
+            distance_target_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
+            futil.log(f'dist value {anatomy_brb.name}: {distance_target_anatomybody:.3f} mm') #!!!
+
         # ++++ measure delta angle between kwire and target axis
         K_radang = 57.296 # to convert from radians to degrees
-        PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_line3D, kwire_target_line3D).value * K_radang
+        
+        PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2).value * K_radang
+
         futil.log(f'angle value is {PA_data.angle_kPA_ktarget}')
 
-        # ++++ measure delta distance between kwire and target insertion point
-        kwire_PA_enterpoint_estimated_p3d = intersect_point(skin_brb, kwire_PA_line3D.startPoint, kwire_PA_vector3D, 200, 8)
-        _ = createPoint_by_point3D(kwire_PA_enterpoint_estimated_p3d, f"{PA_data.id} entrance estimated")
-        
-        PA_data.distance_ep_kPA_ktarget = kwire_target_cpe_p3d.distanceTo(kwire_PA_enterpoint_estimated_p3d)*10
+        # ++++ measure delta distance between kwire and target insertion point        
+        PA_data.distance_ep_kPA_ktarget = kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10
         futil.log(f'distance PA entrance point to target entrance point: {PA_data.distance_ep_kPA_ktarget} mm')
         
-        PA_data.distance_ep_kPA_ktarget_X = (kwire_target_cpe_p3d.x - kwire_PA_enterpoint_estimated_p3d.x)*10
+        PA_data.distance_ep_kPA_ktarget_X = (kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10
         futil.log(f'distance PA entrance to target entrance X: {PA_data.distance_ep_kPA_ktarget_X} mm')
 
-        PA_data.distance_ep_kPA_ktarget_Y = (kwire_target_cpe_p3d.y - kwire_PA_enterpoint_estimated_p3d.y)*10
+        PA_data.distance_ep_kPA_ktarget_Y = (kwire_target_P2_estimated.y - kwire_PA_P2_estimated.y)*10
         futil.log(f'distance PA entrance to target entrance Y: {PA_data.distance_ep_kPA_ktarget_Y} mm')
         
-        PA_data.distance_ep_kPA_ktarget_Z = (kwire_target_cpe_p3d.z - kwire_PA_enterpoint_estimated_p3d.z)*10
+        PA_data.distance_ep_kPA_ktarget_Z = (kwire_target_P2_estimated.z - kwire_PA_P2_estimated.z)*10
         futil.log(f'distance PA entrance to target entrance Z: {PA_data.distance_ep_kPA_ktarget_Z} mm')
         
         # ++++ measure delta depth of insertion (depth difference between PA and target)
-        kwire_target_insertion_depth_mm = kwirel - (kwire_target_cpe_p3d.distanceTo(kwire_target_cpo_p3d)*10)
-        kwire_PA_insertion_depth_mm = kwirel - (P1_p3d.distanceTo(kwire_PA_enterpoint_estimated_p3d)*10)
+        kwire_target_insertion_depth_mm = kwirel - (kwire_target_P2_estimated.distanceTo(kwire_target_P1)*10)
+        kwire_PA_insertion_depth_mm = kwirel - (kwire_PA_P1.distanceTo(kwire_PA_P2_estimated)*10)
         
         PA_data.delta_id_kPA_ktarget = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
         futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_kPA_ktarget} mm')
@@ -323,73 +332,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
         PA_data_str = PA_data.dumps()
         futil.log(f'import this into companion (already copied in clipboard): \n{PA_data_str}')
         pyperclip.copy(PA_data_str)
-
-        # --------------------------------------- #
-
-        # measure delta angle between kwire and target on x/y/z axis
-        # X_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(1,0,0))
-        # Y_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,1,0))
-        # Z_axis = adsk.core.Line3D.create(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,0,1))
-        # futil.log(f'delta angle X: {delta_angle(kwire_PA_line3D, kwire_target_line3D, X_axis)}') # ??? non so se lo si puo accettare (non sono euler angles)
-        # futil.log(f'delta angle Y: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Y_axis)}')
-        # futil.log(f'delta angle Z: {delta_angle(kwire_PA_line3D, kwire_target_line3D, Z_axis)}')
-
-
-        # def normalizza(vettore):
-        #     # Normalizza il vettore per avere lunghezza 1
-        #     return vettore / np.linalg.norm(vettore)
-
-        # def calcola_asse_e_angolo(vettore1, vettore2):
-        #     # Calcola l'asse e l'angolo tra due vettori
-        #     vettore1 = normalizza(vettore1)
-        #     vettore2 = normalizza(vettore2)
-        #     prodotto_croce = np.cross(vettore1, vettore2)
-        #     angolo = np.arccos(np.dot(vettore1, vettore2))
-        #     return prodotto_croce, angolo
-
-        # def calcola_matrice_rotazione(asse, angolo):
-        #     # Calcola la matrice di rotazione data un asse e un angolo
-        #     c = np.cos(angolo)
-        #     s = np.sin(angolo)
-        #     t = 1 - c
-
-        #     x, y, z = asse
-        #     matrice = np.array([[t * x * x + c, t * x * y - s * z, t * x * z + s * y],
-        #                         [t * x * y + s * z, t * y * y + c, t * y * z - s * x],
-        #                         [t * x * z - s * y, t * y * z + s * x, t * z * z + c]])
-        #     return matrice
-
-        # def ruota_vettore(vettore, matrice_rotazione):
-        #     # Ruota un vettore usando una matrice di rotazione
-        #     return np.dot(matrice_rotazione, vettore)
-
-        # def allinea_vettori(vettore1, vettore2):
-        #     Calcola tre rotazioni successive per allineare due vettori
-        #     asse1, angolo1 = calcola_asse_e_angolo(vettore1, vettore2)
-        #     matrice_rotazione1 = calcola_matrice_rotazione(asse1, angolo1)
-        #     vettore2_rot1 = ruota_vettore(vettore2, matrice_rotazione1)
-
-        #     asse2, angolo2 = calcola_asse_e_angolo(vettore1, vettore2_rot1)
-        #     matrice_rotazione2 = calcola_matrice_rotazione(asse2, angolo2)
-        #     vettore2_rot2 = ruota_vettore(vettore2_rot1, matrice_rotazione2)
-
-        #     asse3, angolo3 = calcola_asse_e_angolo(vettore1, vettore2_rot2)
-        #     matrice_rotazione3 = calcola_matrice_rotazione(asse3, angolo3)
-        #     vettore2_allineato = ruota_vettore(vettore2_rot2, matrice_rotazione3)
-
-        #     rotazioni = [angolo1, angolo2, angolo3]
-
-        #     return vettore2_allineato, rotazioni
-
-        # futil.log(f"Vettore 1 xyz: {kwire_PA_vector3D.asArray()}")
-        # futil.log(f"Vettore 2 xyz: {kwire_target_vector3D.asArray()}")
-        # vettore1 = np.array(kwire_PA_vector3D.asArray())
-        # vettore2 = np.array(kwire_target_vector3D.asArray())
-
-        # vettore2_allineato, rotazioni = allinea_vettori(vettore1, vettore2)
-        # futil.log(f"Vettore 1: {vettore1}")
-        # futil.log(f"Vettore 2 allineato: {vettore2_allineato}")
-        # futil.log(f"Rotazioni sui tre assi: {[x*K_radang for x in rotazioni]}")
         
     except:
         _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
