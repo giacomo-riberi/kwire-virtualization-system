@@ -254,13 +254,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ------------------------ KWIRE TARGET ------------------------ #
         kwire_target_occ, kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_axis, kwire_target_vector = get_kwire_target(PA_data)
         kwire_target_P2_estimated = intersect_point(skin_brb, kwire_target_P1, kwire_target_vector, 200, 8)
-        
+
         kwire_target_P1P2 = adsk.core.Line3D.create(kwire_target_P1, kwire_target_P2_estimated)
         kwire_target_P1TIP = adsk.core.Line3D.create(kwire_target_P1, kwire_target_comp.originConstructionPoint.geometry)
 
-        _ = createAxis_by_Line3D(None, None, kwire_target_P1TIP, "kwire_target_P1TIP") # debug NOTWORKING !!!
-        _ = createPoint_by_point3D(None, None, kwire_target_P1, f"kwire_target P1") # debug NOTWORKING !!!
-        _ = createPoint_by_point3D(None, None, kwire_target_comp.originConstructionPoint.geometry, f"kwire target_origin") # debug NOTWORKING !!!
+        # _ = createAxis_by_Line3D(None, None, kwire_target_P1TIP, "kwire_target_P1TIP") # debug NOTWORKING !!!
+        # _ = createPoint_by_point3D(None, None, kwire_target_P1, f"kwire_target P1") # debug NOTWORKING !!!
+        # _ = createPoint_by_point3D(None, None, kwire_target_comp.originConstructionPoint.geometry, f"kwire target_origin") # debug NOTWORKING !!!
 
 
         # -------------------------- KWIRE PA -------------------------- #
@@ -288,10 +288,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
         _ = createPoint_by_point3D(None, None, kwire_PA_P2, f"{PA_data.id} P2")
         _ = createPoint_by_point3D(None, None, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
         kwire_PA_axis = createAxis_by_Line3D(None, None, kwire_PA_P1P2, f"{PA_data.id} axis")
-    
-        kwire_PA_brb = create_cylinder( # NOTWORKING !!!
-                        None,
-                        None,
+        
+        kwire_PA_brb = create_cylinder(
+                        None, # works only in _rootComp
+                        None, # works only in _rootComp
                         PA_data.id,
                         kwire_PA_P1,
                         kwire_PA_P2,
@@ -513,7 +513,13 @@ def trilaterate3D(
 
     return [adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2]), adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])]
 
-def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: float, lenght: float) -> adsk.fusion.BRepBody:
+def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id: str, P1: adsk.core.Point3D, P2: adsk.core.Point3D, r: float, lenght: float) -> adsk.fusion.BRepBody:
+    # idea:
+    # c = adsk.core.Cylinder.create(p1, kwire_PA_vector, kwirer)
+
+    P1 = P1.copy()
+    P2 = P2.copy()
+    
     try:
         if comp == None:
             comp = _rootComp
@@ -525,12 +531,15 @@ def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id
         else:
             planeInput = planes.createInput(occ)
 
-        planeInput.setByPlane(adsk.core.Plane.create(p1, p1.vectorTo(p2)))   
+        planeInput.setByPlane(adsk.core.Plane.create(P1, P1.vectorTo(P2)))   
         plane1 = comp.constructionPlanes.add(planeInput)
         sketch1 = comp.sketches.add(plane1)
+
+        # convert P1 coordinates to sketch coordinates
+        P1sketch = sketch1.modelToSketchSpace(P1)
         
         circles = sketch1.sketchCurves.sketchCircles
-        circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), r)
+        circle1 = circles.addByCenterRadius(P1sketch, r)
         profile0 = sketch1.profiles.item(0)
 
         extrudes = adsk.fusion.ExtrudeFeatures.cast(comp.features.extrudeFeatures)
@@ -543,9 +552,9 @@ def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id
         cilinder = ext.bodies.item(0)
         cilinder.name = id
 
-        plane1.deleteMe()
-        sketch1.deleteMe()
-        ext.dissolve()
+        plane1.deleteMe() # debug (comment out)
+        sketch1.deleteMe() # debug (comment out)
+        ext.dissolve() # debug (comment out)
 
         return cilinder
         
