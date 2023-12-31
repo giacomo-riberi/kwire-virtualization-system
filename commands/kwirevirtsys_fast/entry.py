@@ -284,14 +284,14 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_PA_vector.normalize()
         kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 8)
 
-        _ = createPoint_by_point3D(None, None, kwire_PA_P1, f"{PA_data.id} P1")
-        _ = createPoint_by_point3D(None, None, kwire_PA_P2, f"{PA_data.id} P2")
-        _ = createPoint_by_point3D(None, None, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
-        kwire_PA_axis = createAxis_by_Line3D(None, None, kwire_PA_P1P2, f"{PA_data.id} axis")
+        _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P1, f"{PA_data.id} P1")
+        _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P2, f"{PA_data.id} P2")
+        _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
+        kwire_PA_axis = createAxis_by_Line3D(kwire_target_occ, kwire_target_comp, kwire_PA_P1P2, f"{PA_data.id} axis")
         
         kwire_PA_brb = create_cylinder(
-                        None, # works only in _rootComp
-                        None, # works only in _rootComp
+                        kwire_target_occ,
+                        kwire_target_comp,
                         PA_data.id,
                         kwire_PA_P1,
                         kwire_PA_P2,
@@ -521,15 +521,9 @@ def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id
     P2 = P2.copy()
     
     try:
-        if comp == None:
-            comp = _rootComp
-        
+        comp = _rootComp
         planes = comp.constructionPlanes
-
-        if occ == None:
-            planeInput = planes.createInput()
-        else:
-            planeInput = planes.createInput(occ)
+        planeInput = planes.createInput()
 
         planeInput.setByPlane(adsk.core.Plane.create(P1, P1.vectorTo(P2)))   
         plane1 = comp.constructionPlanes.add(planeInput)
@@ -555,6 +549,8 @@ def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id
         plane1.deleteMe() # debug (comment out)
         sketch1.deleteMe() # debug (comment out)
         ext.dissolve() # debug (comment out)
+
+        cilinder.moveToComponent(occ)
 
         return cilinder
         
