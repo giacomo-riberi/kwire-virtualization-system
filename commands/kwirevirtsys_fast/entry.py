@@ -100,6 +100,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.add_handler(args.command.destroy, command_destroy, local_handlers=local_handlers)
     futil.add_handler(args.command.activate, command_activate, local_handlers=local_handlers)
 
+
 def command_activate(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME}: Command Activate Event')
         
@@ -174,7 +175,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             for occ in _rootComp.allOccurrences:
                 for brb in occ.bRepBodies:
                     if brb.name == k:
-                        futil.log(f"\tfound anatomy struct {k} in {occ.name}")
+                        # futil.log(f"\tfound anatomy struct {k} in {occ.name}") # debug
                         found[k] = brb
                         found_count += 1
         
@@ -190,25 +191,32 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 if brb.name == "skin":
                     return brb
         
-    def get_kwire_target(PA_data: data.PAdata) -> tuple[adsk.fusion.Component, adsk.fusion.BRepBody, adsk.core.Point3D, adsk.core.Vector3D] | None:
+    def get_kwire_target(PA_data: data.PAdata) -> tuple[adsk.fusion.Occurrence, adsk.fusion.Component, adsk.fusion.BRepBody, adsk.core.Point3D, adsk.fusion.ConstructionAxis, adsk.core.Vector3D] | None:
         "returns normalized vector"
         
         for occ in _rootComp.allOccurrences:
+            # futil.log(f'occurrence name: {occ.name}') # debug
             if occ.name == PA_data.ktarget:
-                kwire = occ.component
+                ktarget_occ = occ
+                ktarget = ktarget_occ.component
 
-                p1 = kwire.constructionPoints.itemByName("p1").geometry
-                p1.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+                p1 = ktarget.constructionPoints.itemByName("target P1").geometry
+                p1.transformBy(ktarget_occ.transform2) # must be transformed from the occurrence coordinate axis
 
-                _, _, vector = kwire.xConstructionAxis.geometry.getData()
-                vector.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
+                _, TIP, vector = ktarget.zConstructionAxis.geometry.getData()
+                vector.transformBy(ktarget_occ.transform2) # must be transformed from the occurrence coordinate axis
                 vector.normalize()
                 
-                return kwire, kwire.bRepBodies.itemByName("filo"), p1, vector
+                return ktarget_occ, ktarget, ktarget.bRepBodies.itemByName("target"), p1, ktarget.constructionAxes.itemByName("target axis"), vector
         return None
 
     def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int, precisionStart: int = None) -> adsk.core.Point3D | None:
         "estimate point of intersection of a vector starting from P through a body; dir should be normalized"
+        
+        # copy as the variable seems to be referenced by a sort of pointer
+        # brb = brb.copy() # not this as it will fail (the original one must be used)
+        P   = P.copy()
+        dir = dir.copy()
 
         if precisionStart == None:
             precisionStart = precision
@@ -244,9 +252,15 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
 
         # ------------------------ KWIRE TARGET ------------------------ #
-        kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_vector = get_kwire_target(PA_data)
+        kwire_target_occ, kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_axis, kwire_target_vector = get_kwire_target(PA_data)
         kwire_target_P2_estimated = intersect_point(skin_brb, kwire_target_P1, kwire_target_vector, 200, 8)
-        kwire_target_P1P2 = adsk.core.Line3D.create(kwire_target_P1, kwire_target_comp.originConstructionPoint.geometry)
+        
+        kwire_target_P1P2 = adsk.core.Line3D.create(kwire_target_P1, kwire_target_P2_estimated)
+        kwire_target_P1TIP = adsk.core.Line3D.create(kwire_target_P1, kwire_target_comp.originConstructionPoint.geometry)
+
+        _ = createAxis_by_Line3D(None, None, kwire_target_P1TIP, "kwire_target_P1TIP") # debug NOTWORKING !!!
+        _ = createPoint_by_point3D(None, None, kwire_target_P1, f"kwire_target P1") # debug NOTWORKING !!!
+        _ = createPoint_by_point3D(None, None, kwire_target_comp.originConstructionPoint.geometry, f"kwire target_origin") # debug NOTWORKING !!!
 
 
         # -------------------------- KWIRE PA -------------------------- #
@@ -257,28 +271,34 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         markers["C"], PA_data.P1C/10,
                         markers["D"], PA_data.P1D/10)
         
-        # kwire_PA_cpe (construction point (skin) entrance)
         kwire_PA_P2, kwire_PA_P2_mean, kwire_PA_P2_SD, kwire_PA_P2_SE = trilaterate3D_4spheres(
                         markers["A"], PA_data.P2A/10,
                         markers["B"], PA_data.P2B/10,
                         markers["C"], PA_data.P2C/10,
                         markers["D"], PA_data.P2D/10)
+    
+        # futil.log(f'kwire_PA_P1 - {kwire_PA_P1.asArray()}\n kwire_PA_P2 {kwire_PA_P2.asArray()}') # debug
 
         kwire_PA_P1P2 = adsk.core.Line3D.create(kwire_PA_P1, kwire_PA_P2)
         kwire_PA_vector = kwire_PA_P1.vectorTo(kwire_PA_P2)
         kwire_PA_vector.normalize()
-        kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1P2.startPoint, kwire_PA_vector, 200, 8)
-        _ = createPoint_by_point3D(kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
+        kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 8)
 
-        kwire_PA_brb = create_cylinder(
+        _ = createPoint_by_point3D(None, None, kwire_PA_P1, f"{PA_data.id} P1")
+        _ = createPoint_by_point3D(None, None, kwire_PA_P2, f"{PA_data.id} P2")
+        _ = createPoint_by_point3D(None, None, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
+        kwire_PA_axis = createAxis_by_Line3D(None, None, kwire_PA_P1P2, f"{PA_data.id} axis")
+    
+        kwire_PA_brb = create_cylinder( # NOTWORKING !!!
+                        None,
+                        None,
                         PA_data.id,
                         kwire_PA_P1,
                         kwire_PA_P2,
                         kwirer,
                         kwirel)
 
-        _ = createPoint_by_point3D(kwire_PA_P1, f"{PA_data.id} P1")
-        _ = createPoint_by_point3D(kwire_PA_P2, f"{PA_data.id} P2")
+        return
         
 
         # ---------------- KWIRE PA VIRTUAL CALCULATIONS --------------- #
@@ -294,14 +314,21 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ++++ measure distance from anatomical structures
         tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get()
         for name, anatomy_brb in bodies.items():
-            distance_PA_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_PA_brb), tmpMgr.copy(anatomy_brb)).value*10
+            # distance_target_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_target_P1TIP, anatomy_brb)
+            # distance_target_anatomybody = distance_target_anatomybody_result.value * 10
+            # distance_target_anatomybody = round(distance_target_anatomybody, 3)
+            # futil.log(f'distance target - {anatomy_brb.name}: {distance_target_anatomybody:.3f} mm') # debug
+            # _ = createPoint_by_point3D(_rootComp, distance_target_anatomybody_result.positionOne, f"position one")#!!!
+            # _ = createPoint_by_point3D(_rootComp, distance_target_anatomybody_result.positionTwo, f"position two")#!!!
+
+            distance_PA_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_PA_axis, anatomy_brb)
+            distance_PA_anatomybody = distance_PA_anatomybody_result.value * 10
             PA_data.anatomy[anatomy_brb.name] = round(distance_PA_anatomybody, 3)
-            futil.log(f'dist value {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm')
-
-            distance_target_anatomybody = _app.measureManager.measureMinimumDistance(tmpMgr.copy(kwire_target_brb), tmpMgr.copy(anatomy_brb)).value*10 # NOTWORKING
-            futil.log(f'dist value {anatomy_brb.name}: {distance_target_anatomybody:.3f} mm') #!!!
-
-        # ++++ measure delta angle between kwire and target axis
+            futil.log(f'distance PA     - {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm') # debug
+            _ = createPoint_by_point3D(_rootComp, distance_PA_anatomybody_result.positionOne, f"position one")#!!!
+            _ = createPoint_by_point3D(_rootComp, distance_PA_anatomybody_result.positionTwo, f"position two")#!!!
+        
+        # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.296 # to convert from radians to degrees
         
         PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2).value * K_radang
@@ -339,18 +366,42 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
 ######################## TOOLS ########################
 
-def createAxis_by_Line3D(l: adsk.core.Line3D) -> adsk.fusion.ConstructionAxis:
-        "create visible construction axis from a line 3D"
-        if _design.designType == adsk.fusion.DesignTypes.DirectDesignType:
-            axes = _rootComp.constructionAxes
-            axisInput = axes.createInput()
-            axisInput.setByLine(l.asInfiniteLine())
-            return axes.add(axisInput)
+def createAxis_by_Line3D(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, l: adsk.core.Line3D | adsk.core.InfiniteLine3D, name="") -> adsk.fusion.ConstructionAxis:
+    "create visible construction axis from a line 3D"
+    if comp == None:
+        comp = _rootComp
+
+    axes = comp.constructionAxes
+
+    if occ == None:
+        axisInput = axes.createInput()
+    else:
+        axisInput = axes.createInput(occ)
     
-def createPoint_by_point3D(p: adsk.core.Point3D, name="") -> adsk.fusion.ConstructionPoint:
+    if type(l) == adsk.core.Line3D:
+        axisInput.setByLine(l.asInfiniteLine())
+    elif type(l) == adsk.core.InfiniteLine3D:
+        axisInput.setByLine(l)
+    else:
+        futil.log(f'createAxis_by_Line3D: input not supported')
+    ca = axes.add(axisInput)
+    if name != "":
+        ca.name = name
+    return ca
+    
+def createPoint_by_point3D(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, p: adsk.core.Point3D, name="") -> adsk.fusion.ConstructionPoint:
     "create visible construction point from a point 3D"
-    points = _rootComp.constructionPoints
-    pointsInput = points.createInput()
+    if comp == None:
+        comp = _rootComp
+        points = _rootComp.constructionPoints
+        
+    points = comp.constructionPoints
+
+    if occ == None:
+        pointsInput = points.createInput()
+    else:
+        pointsInput = points.createInput(occ)
+
     pointsInput.setByPoint(p)
     pc = points.add(pointsInput)
     if name != "":
@@ -378,6 +429,8 @@ def trilaterate3D_4spheres(
         points.extend(trilaterate3D(A, PA, C, PC, D, PD))
         points.extend(trilaterate3D(B, PB, C, PC, D, PD))
 
+        # _ = [createPoint_by_point3D(None, None, p) for p in points] # debug
+
         # make all possible combination groups of 4 out of 8 intersection points
         # (the objective is to find the group (cluster) of which points are the closest to eachother)
         groups = list(combinations(points, 4))
@@ -398,7 +451,7 @@ def trilaterate3D_4spheres(
             if calc_group_dist(group) < calc_group_dist(cluster):
                 cluster = group
                 
-        # _ = [createPoint_by_point3D(point) for point in cluster] # debug
+        # _ = [createPoint_by_point3D(None, None, p) for p in cluster] # debug
         
         # compute the cluster center point
         cluster_center = adsk.core.Point3D.create(
@@ -406,7 +459,7 @@ def trilaterate3D_4spheres(
             (cluster[0].y + cluster[1].y + cluster[2].y + cluster[3].y)/4,
             (cluster[0].z + cluster[1].z + cluster[2].z + cluster[3].z)/4
         )
-        # _ = createPoint_by_point3D(cluster_center, "cluster_center") # debug
+        # _ = createPoint_by_point3D(None, None, cluster_center, "cluster_center") # debug
 
         # compute measurement error statistics
         cluster_center_dists = [cluster_center.distanceTo(cluster[0])*10, cluster_center.distanceTo(cluster[1])*10, cluster_center.distanceTo(cluster[2])*10, cluster_center.distanceTo(cluster[3])*10]
@@ -460,19 +513,27 @@ def trilaterate3D(
 
     return [adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2]), adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])]
 
-def create_cylinder(id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: float, lenght: float) -> adsk.fusion.BRepBody:
+def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id: str, p1: adsk.core.Point3D, p2: adsk.core.Point3D, r: float, lenght: float) -> adsk.fusion.BRepBody:
     try:
-        planes = _rootComp.constructionPlanes
-        planeInput = adsk.fusion.ConstructionPlaneInput.cast(planes.createInput())
+        if comp == None:
+            comp = _rootComp
+        
+        planes = comp.constructionPlanes
+
+        if occ == None:
+            planeInput = planes.createInput()
+        else:
+            planeInput = planes.createInput(occ)
+
         planeInput.setByPlane(adsk.core.Plane.create(p1, p1.vectorTo(p2)))   
-        plane1 = _rootComp.constructionPlanes.add(planeInput)
-        sketch1 = _rootComp.sketches.add(plane1)
+        plane1 = comp.constructionPlanes.add(planeInput)
+        sketch1 = comp.sketches.add(plane1)
         
         circles = sketch1.sketchCurves.sketchCircles
         circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), r)
         profile0 = sketch1.profiles.item(0)
 
-        extrudes = adsk.fusion.ExtrudeFeatures.cast(_rootComp.features.extrudeFeatures)
+        extrudes = adsk.fusion.ExtrudeFeatures.cast(comp.features.extrudeFeatures)
         dist = adsk.core.ValueInput.createByReal(lenght)
         extInput = extrudes.createInput(profile0, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         extInput.setOneSideExtent(adsk.fusion.DistanceExtentDefinition.create(dist), adsk.fusion.ExtentDirections.PositiveExtentDirection)
