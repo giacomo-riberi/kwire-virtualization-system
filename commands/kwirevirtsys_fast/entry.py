@@ -296,10 +296,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
                         kwire_PA_P1,
                         kwire_PA_P2,
                         kwirer,
-                        kwirel)
-
-        return
-        
+                        kwirel)        
 
         # ---------------- KWIRE PA VIRTUAL CALCULATIONS --------------- #
 
@@ -312,21 +309,29 @@ def command_execute(args: adsk.core.CommandEventArgs):
         PA_data.P2_SE   = kwire_PA_P2_SE
         
         # ++++ measure distance from anatomical structures
-        tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get()
+        # tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get() # old solution
+        # kwire_target_brb_tmp = tmpMgr.copy(kwire_target_brb)
+        # moveFeats = kwire_target_brb_tmp.parentComponent.features.moveFeatures #!!!
+        # moveFeatureInput = moveFeats.createInput2(kwire_target_brb_tmp) #!!!
+        # moveFeatureInput.defineAsPointToPoint(adsk.core.Point3D.create(0, 0, 0), kwire_target_comp.originConstructionPoint.geometry) #!!!
+        # moveFeats.add(moveFeatureInput) #!!!
+
+        kwire_target_brb
         for name, anatomy_brb in bodies.items():
-            # distance_target_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_target_P1TIP, anatomy_brb)
+            # NOTWORKING !!!
+            # distance_target_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_target_brb_tmp, anatomy_brb)
             # distance_target_anatomybody = distance_target_anatomybody_result.value * 10
             # distance_target_anatomybody = round(distance_target_anatomybody, 3)
             # futil.log(f'distance target - {anatomy_brb.name}: {distance_target_anatomybody:.3f} mm') # debug
-            # _ = createPoint_by_point3D(_rootComp, distance_target_anatomybody_result.positionOne, f"position one")#!!!
-            # _ = createPoint_by_point3D(_rootComp, distance_target_anatomybody_result.positionTwo, f"position two")#!!!
+            # _ = createPoint_by_point3D(None, None, distance_target_anatomybody_result.positionOne, f"position one") # debug
+            # _ = createPoint_by_point3D(None, None, distance_target_anatomybody_result.positionTwo, f"position two") # debug
 
-            distance_PA_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_PA_axis, anatomy_brb)
+            distance_PA_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_PA_brb, anatomy_brb)
             distance_PA_anatomybody = distance_PA_anatomybody_result.value * 10
             PA_data.anatomy[anatomy_brb.name] = round(distance_PA_anatomybody, 3)
-            futil.log(f'distance PA     - {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm') # debug
-            _ = createPoint_by_point3D(_rootComp, distance_PA_anatomybody_result.positionOne, f"position one")#!!!
-            _ = createPoint_by_point3D(_rootComp, distance_PA_anatomybody_result.positionTwo, f"position two")#!!!
+            # futil.log(f'distance PA     - {anatomy_brb.name}: {PA_data.anatomy[anatomy_brb.name]:.3f} mm') # debug
+            # _ = createPoint_by_point3D(None, None, distance_PA_anatomybody_result.positionOne, f"position one") # debug
+            # _ = createPoint_by_point3D(None, None, distance_PA_anatomybody_result.positionTwo, f"position two") # debug
         
         # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.296 # to convert from radians to degrees
@@ -550,7 +555,7 @@ def create_cylinder(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, id
         sketch1.deleteMe() # debug (comment out)
         ext.dissolve() # debug (comment out)
 
-        cilinder.moveToComponent(occ)
+        cilinder = cilinder.moveToComponent(occ)
 
         return cilinder
         
