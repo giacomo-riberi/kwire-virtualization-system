@@ -191,7 +191,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 if brb.name == "skin":
                     return brb
         
-    def get_kwire_target(PA_data: data.PAdata) -> tuple[adsk.fusion.Occurrence, adsk.fusion.Component, adsk.fusion.BRepBody, adsk.core.Point3D, adsk.fusion.ConstructionAxis, adsk.core.Vector3D] | None:
+    def get_kwire_target(PA_data: data.PAdata) -> tuple[adsk.fusion.Occurrence, adsk.fusion.Component, adsk.fusion.BRepBody, adsk.core.Point3D, adsk.fusion.ConstructionAxis, adsk.core.Vector3D]:
         "returns normalized vector"
         
         for occ in _rootComp.allOccurrences:
@@ -210,7 +210,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 vector.normalize()
                 
                 return target_occ, target_comp, target_brb, p1, vector
-        return None
 
     def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int, precisionStart: int = None) -> adsk.core.Point3D | None:
         "estimate point of intersection of a vector starting from P through a body; dir should be normalized"
@@ -315,17 +314,9 @@ def command_execute(args: adsk.core.CommandEventArgs):
         PA_data.P2_SE   = kwire_PA_P2_SE
         
         # ++++ measure distance from anatomical structures
-        # tmpMgr: adsk.fusion.TemporaryBRepManager = adsk.fusion.TemporaryBRepManager.get() # old solution
-        # kwire_target_brb_tmp = tmpMgr.copy(kwire_target_brb)
-        # moveFeats = kwire_target_brb_tmp.parentComponent.features.moveFeatures #!!!
-        # moveFeatureInput = moveFeats.createInput2(kwire_target_brb_tmp) #!!!
-        # moveFeatureInput.defineAsPointToPoint(adsk.core.Point3D.create(0, 0, 0), kwire_target_comp.originConstructionPoint.geometry) #!!!
-        # moveFeats.add(moveFeatureInput) #!!!
-
-        kwire_target_brb
         for name, anatomy_brb in bodies.items():
-            # NOTWORKING !!!
-            # distance_target_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_target_brb_tmp, anatomy_brb)
+            # NOTWORKING!!!
+            # distance_target_anatomybody_result = _app.measureManager.measureMinimumDistance(kwire_target_brb, anatomy_brb)
             # distance_target_anatomybody = distance_target_anatomybody_result.value * 10
             # distance_target_anatomybody = round(distance_target_anatomybody, 3)
             # futil.log(f'distance target - {anatomy_brb.name}: {distance_target_anatomybody:.3f} mm') # debug
@@ -340,7 +331,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             # _ = createPoint_by_point3D(None, None, distance_PA_anatomybody_result.positionTwo, f"position two") # debug
         
         # ++++ measure delta angle between PA axis and target axis
-        K_radang = 57.296 # to convert from radians to degrees
+        K_radang = 57.2958 # to convert from radians to degrees
         
         PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang
 
