@@ -345,28 +345,28 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.2958 # to convert from radians to degrees
         
-        PA_data.angle_PA_target = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang
+        PA_data.angle_PA_target = round(_app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang, 3)
 
         futil.log(f'angle value is {PA_data.angle_PA_target}')
 
         # ++++ measure delta distance between kwire and target insertion point        
-        PA_data.distance_P2e_PA_target = kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10
+        PA_data.distance_P2e_PA_target = round(kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10, 3)
         futil.log(f'distance PA entrance point to target entrance point: {PA_data.distance_P2e_PA_target} mm')
         
-        PA_data.distance_P2e_PA_target_X = (kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10
+        PA_data.distance_P2e_PA_target_X = round((kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10, 3)
         futil.log(f'distance PA entrance to target entrance X: {PA_data.distance_P2e_PA_target_X} mm')
 
-        PA_data.distance_P2e_PA_target_Y = (kwire_target_P2_estimated.y - kwire_PA_P2_estimated.y)*10
+        PA_data.distance_P2e_PA_target_Y = round((kwire_target_P2_estimated.y - kwire_PA_P2_estimated.y)*10, 3)
         futil.log(f'distance PA entrance to target entrance Y: {PA_data.distance_P2e_PA_target_Y} mm')
         
-        PA_data.distance_P2e_PA_target_Z = (kwire_target_P2_estimated.z - kwire_PA_P2_estimated.z)*10
+        PA_data.distance_P2e_PA_target_Z = round((kwire_target_P2_estimated.z - kwire_PA_P2_estimated.z)*10, 3)
         futil.log(f'distance PA entrance to target entrance Z: {PA_data.distance_P2e_PA_target_Z} mm')
         
         # ++++ measure delta depth of insertion (depth difference between PA and target)
         kwire_target_insertion_depth_mm = kwirel - (kwire_target_P2_estimated.distanceTo(kwire_target_P1)*10)
         kwire_PA_insertion_depth_mm = kwirel - (kwire_PA_P1.distanceTo(kwire_PA_P2_estimated)*10)
         
-        PA_data.delta_id_PA_target = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
+        PA_data.delta_id_PA_target = round(kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm, 3)
         futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_PA_target} mm')
         
         PA_data.fusion_computed = True
