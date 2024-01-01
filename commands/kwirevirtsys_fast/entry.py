@@ -197,17 +197,19 @@ def command_execute(args: adsk.core.CommandEventArgs):
         for occ in _rootComp.allOccurrences:
             # futil.log(f'occurrence name: {occ.name}') # debug
             if occ.name == PA_data.ktarget:
-                ktarget_occ = occ
-                ktarget = ktarget_occ.component
+                target_occ = occ
+                target_comp = target_occ.component
 
-                p1 = ktarget.constructionPoints.itemByName("target P1").geometry
-                p1.transformBy(ktarget_occ.transform2) # must be transformed from the occurrence coordinate axis
+                target_brb = target_comp.bRepBodies.itemByName("target")
 
-                _, TIP, vector = ktarget.zConstructionAxis.geometry.getData()
-                vector.transformBy(ktarget_occ.transform2) # must be transformed from the occurrence coordinate axis
+                p1 = target_comp.constructionPoints.itemByName("target P1").geometry
+                p1.transformBy(target_occ.transform2) # must be transformed from the occurrence coordinate axis
+
+                _, _, vector = target_comp.zConstructionAxis.geometry.getData()
+                vector.transformBy(target_occ.transform2) # must be transformed from the occurrence coordinate axis
                 vector.normalize()
                 
-                return ktarget_occ, ktarget, ktarget.bRepBodies.itemByName("target"), p1, ktarget.constructionAxes.itemByName("target axis"), vector
+                return target_occ, target_comp, target_brb, p1, vector
         return None
 
     def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int, precisionStart: int = None) -> adsk.core.Point3D | None:
@@ -252,16 +254,20 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
 
         # ------------------------ KWIRE TARGET ------------------------ #
-        kwire_target_occ, kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_axis, kwire_target_vector = get_kwire_target(PA_data)
-        kwire_target_P2_estimated = intersect_point(skin_brb, kwire_target_P1, kwire_target_vector, 200, 8)
+        kwire_target_occ, kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_vector = get_kwire_target(PA_data)
+        kwire_target_P2_estimated = intersect_point(skin_brb, kwire_target_P1, kwire_target_vector, 200, 12)
 
-        kwire_target_P1P2 = adsk.core.Line3D.create(kwire_target_P1, kwire_target_P2_estimated)
-        kwire_target_P1TIP = adsk.core.Line3D.create(kwire_target_P1, kwire_target_comp.originConstructionPoint.geometry)
+        kwire_target_TIP = kwire_target_comp.originConstructionPoint.geometry
+        kwire_target_TIP.transformBy(kwire_target_occ.transform2)
 
-        # _ = createAxis_by_Line3D(None, None, kwire_target_P1TIP, "kwire_target_P1TIP") # debug NOTWORKING !!!
-        # _ = createPoint_by_point3D(None, None, kwire_target_P1, f"kwire_target P1") # debug NOTWORKING !!!
-        # _ = createPoint_by_point3D(None, None, kwire_target_comp.originConstructionPoint.geometry, f"kwire target_origin") # debug NOTWORKING !!!
+        kwire_target_P1P2_estimated = adsk.core.Line3D.create(kwire_target_P1, kwire_target_P2_estimated)
+        kwire_target_P1TIP = adsk.core.Line3D.create(kwire_target_P1, kwire_target_TIP)
 
+        # _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_target_P1, f"debug target P1") # debug
+        # _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_target_P2_estimated, f"debug target P2_estimated") # debug
+        # _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_target_TIP, f"debug target TIP") # debug
+        # _ = createAxis_by_Line3D(kwire_target_occ, kwire_target_comp, kwire_target_P1P2_estimated, f"debug target P1P2_estimated") # debug
+        # _ = createAxis_by_Line3D(kwire_target_occ, kwire_target_comp, kwire_target_P1TIP, f"debug target P1TIP") # debug
 
         # -------------------------- KWIRE PA -------------------------- #
 
@@ -282,7 +288,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_PA_P1P2 = adsk.core.Line3D.create(kwire_PA_P1, kwire_PA_P2)
         kwire_PA_vector = kwire_PA_P1.vectorTo(kwire_PA_P2)
         kwire_PA_vector.normalize()
-        kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 8)
+        kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 12)
 
         _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P1, f"{PA_data.id} P1")
         _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P2, f"{PA_data.id} P2")
@@ -336,7 +342,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.296 # to convert from radians to degrees
         
-        PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2).value * K_radang
+        PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang
 
         futil.log(f'angle value is {PA_data.angle_kPA_ktarget}')
 
