@@ -50,13 +50,13 @@ class PAdata(data_elaboration):
     confidence_position: float
     confidence_angle: float
     estimate_hit: bool
-    ktarget: str; "k-wire target component name on fusion 360"
+    target: str; "k-wire target component name on fusion 360"
     markers: dict[str, str]
     fusion_computed: bool; "analyzed by fusion 360"
     anatomy: dict[str, float]
-    angle_kPA_ktarget: float
-    distance_ep_kPA_ktarget: float; "distance skin entrance point"
-    distance_ep_kPA_ktarget_X: float
-    distance_ep_kPA_ktarget_Y: float
-    distance_ep_kPA_ktarget_Z: float
-    delta_id_kPA_ktarget: float; "delta insertion depth"
+    angle_PA_target: float
+    distance_P2e_PA_target: float; "distance skin entrance point"
+    distance_P2e_PA_target_X: float
+    distance_P2e_PA_target_Y: float
+    distance_P2e_PA_target_Z: float
+    delta_id_PA_target: float; "delta insertion depth"

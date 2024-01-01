@@ -196,7 +196,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
         for occ in _rootComp.allOccurrences:
             # futil.log(f'occurrence name: {occ.name}') # debug
-            if occ.name == PA_data.ktarget:
+            if occ.name == PA_data.target:
                 target_occ = occ
                 target_comp = target_occ.component
 
@@ -210,6 +210,17 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 vector.normalize()
                 
                 return target_occ, target_comp, target_brb, p1, vector
+    
+    def get_kwire_PA(PA_data: data.PAdata) -> tuple[adsk.fusion.Occurrence, adsk.fusion.Component]:
+        "returns normalized vector"
+        
+        for occ in _rootComp.allOccurrences:
+            # futil.log(f'occurrence name: {occ.name}') # debug
+            if occ.name == PA_data.target + " PA:1": # "ECP:1 PA:1"
+                PA_occ = occ
+                PA_comp = PA_occ.component
+                
+                return PA_occ, PA_comp
 
     def intersect_point(brb: adsk.fusion.BRepBody, P: adsk.core.Point3D, dir: adsk.core.Vector3D, maxtests: int, precision: int, precisionStart: int = None) -> adsk.core.Point3D | None:
         "estimate point of intersection of a vector starting from P through a body; dir should be normalized"
@@ -270,6 +281,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         # -------------------------- KWIRE PA -------------------------- #
 
+        kwire_PA_occ, kwire_PA_comp = get_kwire_PA(PA_data)
+
         kwire_PA_P1, kwire_PA_P1_mean, kwire_PA_P1_SD, kwire_PA_P1_SE = trilaterate3D_4spheres(
                         markers["A"], PA_data.P1A/10,
                         markers["B"], PA_data.P1B/10,
@@ -289,19 +302,18 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_PA_vector.normalize()
         kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 12)
 
-        _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P1, f"{PA_data.id} P1")
-        _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P2, f"{PA_data.id} P2")
-        _ = createPoint_by_point3D(kwire_target_occ, kwire_target_comp, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
-        kwire_PA_axis = createAxis_by_Line3D(kwire_target_occ, kwire_target_comp, kwire_PA_P1P2, f"{PA_data.id} axis")
+        _ = createPoint_by_point3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P1, f"{PA_data.id} P1")
+        _ = createPoint_by_point3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P2, f"{PA_data.id} P2")
+        _ = createPoint_by_point3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
+        _ = createAxis_by_Line3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P1P2, f"{PA_data.id} axis")
         
         kwire_PA_brb = create_cylinder(
-                        kwire_target_occ,
-                        kwire_target_comp,
+                        kwire_PA_occ, kwire_PA_comp,
                         PA_data.id,
                         kwire_PA_P1,
                         kwire_PA_P2,
                         kwirer,
-                        kwirel)        
+                        kwirel)
 
         # ---------------- KWIRE PA VIRTUAL CALCULATIONS --------------- #
 
@@ -333,29 +345,29 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.2958 # to convert from radians to degrees
         
-        PA_data.angle_kPA_ktarget = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang
+        PA_data.angle_PA_target = _app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang
 
-        futil.log(f'angle value is {PA_data.angle_kPA_ktarget}')
+        futil.log(f'angle value is {PA_data.angle_PA_target}')
 
         # ++++ measure delta distance between kwire and target insertion point        
-        PA_data.distance_ep_kPA_ktarget = kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10
-        futil.log(f'distance PA entrance point to target entrance point: {PA_data.distance_ep_kPA_ktarget} mm')
+        PA_data.distance_P2e_PA_target = kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10
+        futil.log(f'distance PA entrance point to target entrance point: {PA_data.distance_P2e_PA_target} mm')
         
-        PA_data.distance_ep_kPA_ktarget_X = (kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10
-        futil.log(f'distance PA entrance to target entrance X: {PA_data.distance_ep_kPA_ktarget_X} mm')
+        PA_data.distance_P2e_PA_target_X = (kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10
+        futil.log(f'distance PA entrance to target entrance X: {PA_data.distance_P2e_PA_target_X} mm')
 
-        PA_data.distance_ep_kPA_ktarget_Y = (kwire_target_P2_estimated.y - kwire_PA_P2_estimated.y)*10
-        futil.log(f'distance PA entrance to target entrance Y: {PA_data.distance_ep_kPA_ktarget_Y} mm')
+        PA_data.distance_P2e_PA_target_Y = (kwire_target_P2_estimated.y - kwire_PA_P2_estimated.y)*10
+        futil.log(f'distance PA entrance to target entrance Y: {PA_data.distance_P2e_PA_target_Y} mm')
         
-        PA_data.distance_ep_kPA_ktarget_Z = (kwire_target_P2_estimated.z - kwire_PA_P2_estimated.z)*10
-        futil.log(f'distance PA entrance to target entrance Z: {PA_data.distance_ep_kPA_ktarget_Z} mm')
+        PA_data.distance_P2e_PA_target_Z = (kwire_target_P2_estimated.z - kwire_PA_P2_estimated.z)*10
+        futil.log(f'distance PA entrance to target entrance Z: {PA_data.distance_P2e_PA_target_Z} mm')
         
         # ++++ measure delta depth of insertion (depth difference between PA and target)
         kwire_target_insertion_depth_mm = kwirel - (kwire_target_P2_estimated.distanceTo(kwire_target_P1)*10)
         kwire_PA_insertion_depth_mm = kwirel - (kwire_PA_P1.distanceTo(kwire_PA_P2_estimated)*10)
         
-        PA_data.delta_id_kPA_ktarget = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
-        futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_kPA_ktarget} mm')
+        PA_data.delta_id_PA_target = kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm
+        futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_PA_target} mm')
         
         PA_data.fusion_computed = True
         PA_data_str = PA_data.dumps()
