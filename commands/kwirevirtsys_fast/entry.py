@@ -302,6 +302,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_PA_vector.normalize()
         kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 12)
 
+        # futil.log(f'kwire_PA_P2_estimated: {kwire_PA_P2_estimated.asArray()}')
+
         _ = createPoint_by_point3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P1, f"{PA_data.id} P1")
         _ = createPoint_by_point3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P2, f"{PA_data.id} P2")
         _ = createPoint_by_point3D(kwire_PA_occ, kwire_PA_comp, kwire_PA_P2_estimated, f"{PA_data.id} P2 estimated")
@@ -443,7 +445,8 @@ def trilaterate3D_4spheres(
         points.extend(trilaterate3D(A, PA, C, PC, D, PD))
         points.extend(trilaterate3D(B, PB, C, PC, D, PD))
 
-        # _ = [createPoint_by_point3D(None, None, p) for p in points] # debug
+        # _ = [futil.log(f'point: {p.asArray()}') for p in points]    # debug
+        # +_ = [createPoint_by_point3D(None, None, p) for p in points] # debug
 
         # make all possible combination groups of 4 out of 8 intersection points
         # (the objective is to find the group (cluster) of which points are the closest to eachother)
@@ -465,7 +468,7 @@ def trilaterate3D_4spheres(
             if calc_group_dist(group) < calc_group_dist(cluster):
                 cluster = group
                 
-        # _ = [createPoint_by_point3D(None, None, p) for p in cluster] # debug
+        _ = [createPoint_by_point3D(None, None, p) for p in cluster] # debug
         
         # compute the cluster center point
         cluster_center = adsk.core.Point3D.create(
@@ -492,9 +495,9 @@ def trilaterate3D_4spheres(
         
 
     except Exception as e:
-        _ui.messageBox(f"trilaterate3D_err: {e.__traceback__.tb_lineno}\n\nerror: {e}")
+        _ui.messageBox(f"trilaterate3D_4spheres: {e.__traceback__.tb_lineno}\n\nerror: {e}")
 
-    return 
+    return None, None, None, None
 
 def trilaterate3D(
         m1:  adsk.core.Point3D, # marker point
@@ -505,25 +508,54 @@ def trilaterate3D(
         m3P: float
 ) -> list[adsk.core.Point3D]:
     "returns the 2 intersection points of the 3 spheres"
+    
+    # futil.log(f"before: {m1P, m2P, m3P}") # debug
+    # futil.log(f"before: {m1P+m2P, m2P+m3P, m3P+m1P}") # debug
 
-    try:
-        m1np=np.array(m1.asArray())
-        m2np=np.array(m2.asArray())
-        m3np=np.array(m3.asArray())       
-        e_x=(m2np-m1np)/np.linalg.norm(m2np-m1np)
-        i=np.dot(e_x,(m3np-m1np))
-        e_y=(m3np-m1np-(i*e_x))/(np.linalg.norm(m3np-m1np-(i*e_x)))
-        e_z=np.cross(e_x,e_y)
-        d=np.linalg.norm(m2np-m1np)
-        j=np.dot(e_y,(m3np-m1np))
-        x=((m1P**2)-(m2P**2)+(d**2))/(2*d)
-        y=(((m1P**2)-(m3P**2)+(i**2)+(j**2))/(2*j))-((i/j)*(x))
-        z1=np.sqrt(m1P**2-x**2-y**2)
-        z2=np.sqrt(m1P**2-x**2-y**2)*(-1)
-        ans1=m1np+(x*e_x)+(y*e_y)+(z1*e_z)
-        ans2=m1np+(x*e_x)+(y*e_y)+(z2*e_z)
-    except Exception as e:
-        _ui.messageBox(f"trilaterate3D: {e.__traceback__.tb_lineno}\n\nerror: {e}")
+    # check if the spheres intersect, if they don't, increase the radius
+    while m1P + m2P <= m1.distanceTo(m2) or m2P + m3P <= m2.distanceTo(m3) or m3P + m1P <= m3.distanceTo(m1):
+        if m1P + m2P <= m1.distanceTo(m2):
+            m1P += 0.01
+            m2P += 0.01
+        if m2P + m3P <= m2.distanceTo(m3):
+            m2P += 0.01
+            m3P += 0.01
+        if m3P + m1P <= m3.distanceTo(m1):
+            m3P += 0.01
+            m1P += 0.01
+    
+    # futil.log(f"after:  {m1P, m2P, m3P}") # debug
+    # futil.log(f"after:  {m1P+m2P, m2P+m3P, m3P+m1P}") # debug
+    # futil.log(f"m1-m2..:{m1.distanceTo(m2), m2.distanceTo(m3), m3.distanceTo(m1)}") # debug
+    # futil.log(f"-----------------------------------------") # debug
+
+    # edge case in which each couple of the 3 spheres intersects, but the 3 spheres don't intersect in the same area
+    # look at: 3 spheres intersection edge case.png
+    ans1 = np.full(3, np.nan)
+    ans2 = np.full(3, np.nan)
+    while np.isnan(ans1).any() or np.isnan(ans2).any():
+        try:
+            m1np=np.array(m1.asArray())
+            m2np=np.array(m2.asArray())
+            m3np=np.array(m3.asArray())
+            e_x=(m2np-m1np)/np.linalg.norm(m2np-m1np)
+            i=np.dot(e_x,(m3np-m1np))
+            e_y=(m3np-m1np-(i*e_x))/(np.linalg.norm(m3np-m1np-(i*e_x)))
+            e_z=np.cross(e_x,e_y)
+            d=np.linalg.norm(m2np-m1np)
+            j=np.dot(e_y,(m3np-m1np))
+            x=((m1P**2)-(m2P**2)+(d**2))/(2*d)
+            y=(((m1P**2)-(m3P**2)+(i**2)+(j**2))/(2*j))-((i/j)*(x))
+            z1=np.sqrt(m1P**2-x**2-y**2)
+            z2=np.sqrt(m1P**2-x**2-y**2)*(-1)
+            ans1=m1np+(x*e_x)+(y*e_y)+(z1*e_z)
+            ans2=m1np+(x*e_x)+(y*e_y)+(z2*e_z)
+
+            m1P += 0.01
+            m2P += 0.01
+            m3P += 0.01
+        except Exception as e:
+            _ui.messageBox(f"trilaterate3D: {e.__traceback__.tb_lineno}\n\nerror: {e}")
 
     return [adsk.core.Point3D.create(ans1[0], ans1[1], ans1[2]), adsk.core.Point3D.create(ans2[0], ans2[1], ans2[2])]
 
