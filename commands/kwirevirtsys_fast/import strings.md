@@ -20,7 +20,6 @@
  76.20
 
 # example pa ECP:2
-(to check)
  60.73
  48.39
 111.42
@@ -31,6 +30,7 @@
  68.44
 
 # example pa ECP:3
+(to check)
 115.18
 105.16
 70.99

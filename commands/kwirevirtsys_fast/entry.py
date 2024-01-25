@@ -357,10 +357,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # futil.log(f'angle value is {PA_data.angle_PA_target}') # debug
 
         # ++++ measure distance between P2e and 4 markers
-        PA_data.P2eA = round(kwire_PA_P2_estimated.distanceTo(markers["A"]))
-        PA_data.P2eB = round(kwire_PA_P2_estimated.distanceTo(markers["B"]))
-        PA_data.P2eC = round(kwire_PA_P2_estimated.distanceTo(markers["C"]))
-        PA_data.P2eD = round(kwire_PA_P2_estimated.distanceTo(markers["D"]))
+        PA_data.P2eA = round(kwire_PA_P2_estimated.distanceTo(markers["A"])*10, 3)
+        PA_data.P2eB = round(kwire_PA_P2_estimated.distanceTo(markers["B"])*10, 3)
+        PA_data.P2eC = round(kwire_PA_P2_estimated.distanceTo(markers["C"])*10, 3)
+        PA_data.P2eD = round(kwire_PA_P2_estimated.distanceTo(markers["D"])*10, 3)
 
         # ++++ measure delta distance between kwire and target insertion point
         PA_data.distance_P1_PA_target = round(kwire_target_P1.distanceTo(kwire_PA_P1)*10, 3)
@@ -387,7 +387,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
         PA_data.fusion_computed = True
         PA_data_str = PA_data.dumps()
-        # futil.log(f'import this into companion (already copied in clipboard): \n{PA_data_str}') # debug
+        futil.log(f'import this into companion (already copied in clipboard): \n{PA_data_str}')
         pyperclip.copy(PA_data_str)
         
     except:
