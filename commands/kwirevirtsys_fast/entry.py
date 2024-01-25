@@ -196,7 +196,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
         for occ in _rootComp.allOccurrences:
             # futil.log(f'occurrence name: {occ.name}') # debug
-            if occ.name == PA_data.target:
+            if occ.name == PA_data.target: # ECP:1
                 target_occ = occ
                 target_comp = target_occ.component
 
@@ -204,12 +204,18 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
                 p1 = target_comp.constructionPoints.itemByName("target P1").geometry
                 p1.transformBy(target_occ.transform2) # must be transformed from the occurrence coordinate axis
+                
+                for occ in _rootComp.allOccurrences:
+                    if occ.name == "kwires:1":
+                        kwire_comp = occ.component
+                        p2 = kwire_comp.constructionPoints.itemByName(f"{PA_data.target} target P2").geometry # ECP:1 target P2
+                        p2.transformBy(occ.transform2) # must be transformed from the occurrence coordinate axis
 
                 _, _, vector = target_comp.zConstructionAxis.geometry.getData()
                 vector.transformBy(target_occ.transform2) # must be transformed from the occurrence coordinate axis
                 vector.normalize()
                 
-                return target_occ, target_comp, target_brb, p1, vector
+                return target_occ, target_comp, target_brb, p1, p2, vector
     
     def get_kwire_PA(PA_data: data.PAdata) -> tuple[adsk.fusion.Occurrence, adsk.fusion.Component]:
         "returns normalized vector"
@@ -264,7 +270,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
 
         # ------------------------ KWIRE TARGET ------------------------ #
-        kwire_target_occ, kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_vector = get_kwire_target(PA_data)
+        kwire_target_occ, kwire_target_comp, kwire_target_brb, kwire_target_P1, kwire_target_P2, kwire_target_vector = get_kwire_target(PA_data)
         kwire_target_P2_estimated = intersect_point(skin_brb, kwire_target_P1, kwire_target_vector, 200, 12)
 
         kwire_target_TIP = kwire_target_comp.originConstructionPoint.geometry
@@ -351,18 +357,21 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         futil.log(f'angle value is {PA_data.angle_PA_target}')
 
-        # ++++ measure delta distance between kwire and target insertion point        
-        PA_data.distance_P2e_PA_target = round(kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10, 3)
-        futil.log(f'distance PA entrance point to target entrance point: {PA_data.distance_P2e_PA_target} mm')
-        
-        PA_data.distance_P2e_PA_target_X = round((kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10, 3)
-        futil.log(f'distance PA entrance to target entrance X: {PA_data.distance_P2e_PA_target_X} mm')
+        # ++++ measure delta distance between kwire and target insertion point
+        PA_data.distance_P1_PA_target = round(kwire_target_P1.distanceTo(kwire_PA_P1)*10, 3)
+        PA_data.distance_P1_PA_target_X = round((kwire_target_P1.x - kwire_PA_P1.x)*10, 3)
+        PA_data.distance_P1_PA_target_Y = round((kwire_target_P1.y - kwire_PA_P1.y)*10, 3)
+        PA_data.distance_P1_PA_target_Z = round((kwire_target_P1.z - kwire_PA_P1.z)*10, 3)
 
+        PA_data.distance_P2_PA_target = round(kwire_target_P2.distanceTo(kwire_PA_P2)*10, 3)
+        PA_data.distance_P2_PA_target_X = round((kwire_target_P2.x - kwire_PA_P2.x)*10, 3)
+        PA_data.distance_P2_PA_target_Y = round((kwire_target_P2.y - kwire_PA_P2.y)*10, 3)
+        PA_data.distance_P2_PA_target_Z = round((kwire_target_P2.z - kwire_PA_P2.z)*10, 3)
+
+        PA_data.distance_P2e_PA_target = round(kwire_target_P2_estimated.distanceTo(kwire_PA_P2_estimated)*10, 3)
+        PA_data.distance_P2e_PA_target_X = round((kwire_target_P2_estimated.x - kwire_PA_P2_estimated.x)*10, 3)
         PA_data.distance_P2e_PA_target_Y = round((kwire_target_P2_estimated.y - kwire_PA_P2_estimated.y)*10, 3)
-        futil.log(f'distance PA entrance to target entrance Y: {PA_data.distance_P2e_PA_target_Y} mm')
-        
         PA_data.distance_P2e_PA_target_Z = round((kwire_target_P2_estimated.z - kwire_PA_P2_estimated.z)*10, 3)
-        futil.log(f'distance PA entrance to target entrance Z: {PA_data.distance_P2e_PA_target_Z} mm')
         
         # ++++ measure delta depth of insertion (depth difference between PA and target)
         kwire_target_insertion_depth_mm = kwirel - (kwire_target_P2_estimated.distanceTo(kwire_target_P1)*10)
@@ -468,7 +477,7 @@ def trilaterate3D_4spheres(
             if calc_group_dist(group) < calc_group_dist(cluster):
                 cluster = group
                 
-        _ = [createPoint_by_point3D(None, None, p) for p in cluster] # debug
+        # _ = [createPoint_by_point3D(None, None, p) for p in cluster] # debug
         
         # compute the cluster center point
         cluster_center = adsk.core.Point3D.create(

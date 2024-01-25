@@ -55,8 +55,20 @@ class PAdata(data_elaboration):
     fusion_computed: bool; "analyzed by fusion 360"
     anatomy: dict[str, float]
     angle_PA_target: float
-    distance_P2e_PA_target: float; "distance skin entrance point"
+
+    distance_P1_PA_target: float; "distance P1"
+    distance_P1_PA_target_X: float
+    distance_P1_PA_target_Y: float
+    distance_P1_PA_target_Z: float
+
+    distance_P2_PA_target: float; "distance P2"
+    distance_P2_PA_target_X: float
+    distance_P2_PA_target_Y: float
+    distance_P2_PA_target_Z: float
+
+    distance_P2e_PA_target: float; "distance P2 estimated"
     distance_P2e_PA_target_X: float
     distance_P2e_PA_target_Y: float
     distance_P2e_PA_target_Z: float
+    
     delta_id_PA_target: float; "delta insertion depth"
