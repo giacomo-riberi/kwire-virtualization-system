@@ -354,8 +354,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
         K_radang = 57.2958 # to convert from radians to degrees
         
         PA_data.angle_PA_target = round(_app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang, 3)
+        # futil.log(f'angle value is {PA_data.angle_PA_target}') # debug
 
-        futil.log(f'angle value is {PA_data.angle_PA_target}')
+        # ++++ measure distance between P2e and 4 markers
+        PA_data.P2eA = round(kwire_PA_P2_estimated.distanceTo(markers["A"]))
+        PA_data.P2eB = round(kwire_PA_P2_estimated.distanceTo(markers["B"]))
+        PA_data.P2eC = round(kwire_PA_P2_estimated.distanceTo(markers["C"]))
+        PA_data.P2eD = round(kwire_PA_P2_estimated.distanceTo(markers["D"]))
 
         # ++++ measure delta distance between kwire and target insertion point
         PA_data.distance_P1_PA_target = round(kwire_target_P1.distanceTo(kwire_PA_P1)*10, 3)
@@ -378,11 +383,11 @@ def command_execute(args: adsk.core.CommandEventArgs):
         kwire_PA_insertion_depth_mm = kwirel - (kwire_PA_P1.distanceTo(kwire_PA_P2_estimated)*10)
         
         PA_data.delta_id_PA_target = round(kwire_PA_insertion_depth_mm - kwire_target_insertion_depth_mm, 3)
-        futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_PA_target} mm')
+        # futil.log(f'delta insertion (+ means more out of the skin ): {PA_data.delta_id_PA_target} mm') # debug
         
         PA_data.fusion_computed = True
         PA_data_str = PA_data.dumps()
-        futil.log(f'import this into companion (already copied in clipboard): \n{PA_data_str}')
+        # futil.log(f'import this into companion (already copied in clipboard): \n{PA_data_str}') # debug
         pyperclip.copy(PA_data_str)
         
     except:
@@ -495,12 +500,16 @@ def trilaterate3D_4spheres(
         std_deviation = math.sqrt(variance)
         std_error = std_deviation / math.sqrt(len(cluster_center_dists))
 
+        mean = round(mean, 3)
+        std_deviation = round(std_deviation, 3)
+        std_error = round(std_error, 3)
+
         # debug
         futil.log(f"Mean: {mean} mm")
         futil.log(f"Standard Deviation: {std_deviation} mm")
         futil.log(f"Standard Error: {std_error} mm")
 
-        return cluster_center, round(mean, 3), round(std_deviation, 3), round(std_error, 3)
+        return cluster_center, mean, std_deviation, std_error
         
 
     except Exception as e:
