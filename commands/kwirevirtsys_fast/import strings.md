@@ -1,6 +1,41 @@
 # target ECP:1
-{"datatype": "PA", "TEST_id": "ff5854", "ECP_id": "8324b57c", "id": "debug target", "comment": "", "time_init": 1703549533.12, "phase": 0, "ECP_number": 1, "PA_number": 1, "success": true, "PA_D": -1.0, "PA_RPC": 13, "P1A": 79.77, "P1B": 67.26, "P1C": 105.21000000000001, "P1D": 97.92, "P2A": 60.38, "P2B": 53.330000000000005, "P2C": 78.85000000000001, "P2D": 73.02, "P1A_V": 0.0, "P1B_V": 0.0, "P1C_V": 0.0, "P1D_V": 0.0, "P2A_V": 0.0, "P2B_V": 0.0, "P2C_V": 0.0, "P2D_V": 0.0, "max_mean": 1.0, "max_SD": 0.3, "max_SE": 0.2, "P1_mean": -1.0, "P1_SD": -1.0, "P1_SE": -1.0, "P2_mean": -1.0, "P2_SD": -1.0, "P2_SE": -1.0, "confidence_position": 2.0, "confidence_angle": 5.0, "estimate_hit": false, "target": "ECP:1", "markers": {"A": "M:2", "B": "M:3", "C": "M:7", "D": "M:8"}, "fusion_computed": false, "anatomy": {"brachial artery": -1.0, "brachial vein": -1.0, "cephalic vein": -1.0, "basilic vein": -1.0, "random artery 1": -1.0, "median cubital vein": -1.0, "median cubital vein 1": -1.0, "inferior ulnar collateral artery": -1.0, "radial collateral artery": -1.0, "middle collateral artery": -1.0, "ulnar nerve": -1.0, "median nerve": -1.0, "musculocutaneous nerve": -1.0, "posterior branch of medial antebrachial cutaneous nerve": -1.0, "anterior branch of medial antebrachial cutaneous nerve": -1.0, "muscular branches of radial nerve": -1.0, "radial nerve": -1.0, "posterior antebrachial cutaneous nerve": -1.0, "anterior interosseous nerve of forearm": -1.0}, "angle_PA_target": -1.0, "distance_P2e_PA_target": -1.0, "distance_P2e_PA_target_X": -1.0, "distance_P2e_PA_target_Y": -1.0, "distance_P2e_PA_target_Z": -1.0, "delta_id_PA_target": -1.0}
-
+(to check)
+ 80.57
+ 68.06
+106.01
+ 98.72
+ 61.18
+ 54.13
+ 79.65
+ 73.82
 
 # example pa ECP:1
-{"datatype": "PA", "TEST_id": "ff5854", "ECP_id": "8324b57c", "id": "debug example pa", "comment": "", "time_init": 1703549533.12, "phase": 0, "ECP_number": 1, "PA_number": 1, "success": true, "PA_D": -1.0, "PA_RPC": 13, "P1A": 78.59, "P1B": 65.79, "P1C": 106.48, "P1D": 99.26, "P2A": 57.71, "P2B": 52.11, "P2C": 79.94, "P2D": 75.40, "P1A_V": 0.0, "P1B_V": 0.0, "P1C_V": 0.0, "P1D_V": 0.0, "P2A_V": 0.0, "P2B_V": 0.0, "P2C_V": 0.0, "P2D_V": 0.0, "max_mean": 1.0, "max_SD": 0.3, "max_SE": 0.2, "P1_mean": -1.0, "P1_SD": -1.0, "P1_SE": -1.0, "P2_mean": -1.0, "P2_SD": -1.0, "P2_SE": -1.0, "confidence_position": 2.0, "confidence_angle": 5.0, "estimate_hit": false, "target": "ECP:1", "markers": {"A": "M:2", "B": "M:3", "C": "M:7", "D": "M:8"}, "fusion_computed": false, "anatomy": {"brachial artery": -1.0, "brachial vein": -1.0, "cephalic vein": -1.0, "basilic vein": -1.0, "random artery 1": -1.0, "median cubital vein": -1.0, "median cubital vein 1": -1.0, "inferior ulnar collateral artery": -1.0, "radial collateral artery": -1.0, "middle collateral artery": -1.0, "ulnar nerve": -1.0, "median nerve": -1.0, "musculocutaneous nerve": -1.0, "posterior branch of medial antebrachial cutaneous nerve": -1.0, "anterior branch of medial antebrachial cutaneous nerve": -1.0, "muscular branches of radial nerve": -1.0, "radial nerve": -1.0, "posterior antebrachial cutaneous nerve": -1.0, "anterior interosseous nerve of forearm": -1.0}, "angle_PA_target": -1.0, "distance_P2e_PA_target": -1.0, "distance_P2e_PA_target_X": -1.0, "distance_P2e_PA_target_Y": -1.0, "distance_P2e_PA_target_Z": -1.0, "delta_id_PA_target": -1.0}
+ 79.39
+ 66.59
+107.28
+100.06
+ 58.51
+ 52.91
+ 80.74
+ 76.20
+
+# example pa ECP:2
+(to check)
+ 60.73
+ 48.39
+111.42
+105.62
+ 62.35
+ 56.88
+ 73.56
+ 68.44
+
+# example pa ECP:3
+115.18
+105.16
+70.99
+54.28
+71.66
+60.19
+75.57
+64.12
