@@ -10,10 +10,14 @@ class data_elaboration:
 @dataclass
 class PAdata(data_elaboration):
     "positioning attempt data"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     datatype: str
-    TEST_id: int
-    ECP_id: int
-    id: int
+    TEST_id: str
+    ECP_id: str
+    id: str
     comment: str; "used to mark data on database for later technical analysis"
     time_init: float
     phase: int
