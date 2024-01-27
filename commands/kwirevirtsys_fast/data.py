@@ -49,15 +49,11 @@ class PAdata(data_elaboration):
     P2eC_V: float
     P2eD_V: float
 
-    max_mean: float
-    max_SD:   float
-    max_SE:   float
+    P1_mean_max: float
     P1_mean:  float
-    P1_SD:    float
-    P1_SE:    float
+    P2_mean_max: float
     P2_mean:  float
-    P2_SD:    float
-    P2_SE:    float
+    
     confidence_position: float
     confidence_angle: float
     estimate_hit: bool

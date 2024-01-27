@@ -289,13 +289,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         kwire_PA_occ, kwire_PA_comp = get_kwire_PA(PA_data)
 
-        kwire_PA_P1, kwire_PA_P1_mean, kwire_PA_P1_SD, kwire_PA_P1_SE = trilaterate3D_4spheres(
+        kwire_PA_P1, kwire_PA_P1_mean = trilaterate3D_4spheres(
                         markers["A"], PA_data.P1A/10,
                         markers["B"], PA_data.P1B/10,
                         markers["C"], PA_data.P1C/10,
                         markers["D"], PA_data.P1D/10)
         
-        kwire_PA_P2, kwire_PA_P2_mean, kwire_PA_P2_SD, kwire_PA_P2_SE = trilaterate3D_4spheres(
+        kwire_PA_P2, kwire_PA_P2_mean = trilaterate3D_4spheres(
                         markers["A"], PA_data.P2A/10,
                         markers["B"], PA_data.P2B/10,
                         markers["C"], PA_data.P2C/10,
@@ -327,11 +327,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         # ++++ register errors of measurement
         PA_data.P1_mean = kwire_PA_P1_mean
-        PA_data.P1_SD   = kwire_PA_P1_SD
-        PA_data.P1_SE   = kwire_PA_P1_SE
         PA_data.P2_mean = kwire_PA_P2_mean
-        PA_data.P2_SD   = kwire_PA_P2_SD
-        PA_data.P2_SE   = kwire_PA_P2_SE
         
         # ++++ measure distance from anatomical structures
         for name, anatomy_brb in bodies.items():
@@ -447,7 +443,7 @@ def trilaterate3D_4spheres(
         PC: float,
         D:  adsk.core.Point3D,
         PD: float
-        ) -> tuple[adsk.core.Point3D, float, float, float]:
+        ) -> tuple[adsk.core.Point3D, float]:
     "returns the trilateration midpoint and error statistics of all the possible combinations of 3 starting from 4 spheres"
     
     points: list[adsk.core.Point3D] = []
@@ -501,15 +497,11 @@ def trilaterate3D_4spheres(
         std_error = std_deviation / math.sqrt(len(cluster_center_dists))
 
         mean = round(mean, 3)
-        std_deviation = round(std_deviation, 3)
-        std_error = round(std_error, 3)
 
         # debug
         futil.log(f"Mean: {mean} mm")
-        futil.log(f"Standard Deviation: {std_deviation} mm")
-        futil.log(f"Standard Error: {std_error} mm")
 
-        return cluster_center, mean, std_deviation, std_error
+        return cluster_center, mean
         
 
     except Exception as e:
