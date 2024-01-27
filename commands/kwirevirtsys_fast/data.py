@@ -11,9 +11,6 @@ class data_elaboration:
 class PAdata(data_elaboration):
     "positioning attempt data"
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
     datatype: str
     TEST_id: str
     ECP_id: str
