@@ -23,7 +23,8 @@ class PAdata(data_elaboration):
     success: bool
     PA_D: float
     PA_RPC: int;    "PA radiation picture count"
-    P1A: float
+
+    P1A: float;     "P1 - marker: measured with caliper"
     P1B: float
     P1C: float
     P1D: float
@@ -31,20 +32,28 @@ class PAdata(data_elaboration):
     P2B: float
     P2C: float
     P2D: float
+    P1A_F: float;   "P1 - marker: measured in fusion"
+    P1B_F: float
+    P1C_F: float
+    P1D_F: float
+    P2A_F: float
+    P2B_F: float
+    P2C_F: float
+    P2D_F: float
 
-    P2eA: float
+    P2eA: float;   "P2e - marker: measured in fusion"
     P2eB: float
     P2eC: float
     P2eD: float
     
-    P1A_V: float
-    P1B_V: float
-    P1C_V: float
-    P1D_V: float
-    P2eA_V: float
-    P2eB_V: float
-    P2eC_V: float
-    P2eD_V: float
+    P1A_U: float;   "P1A - marker: measured in unity"
+    P1B_U: float
+    P1C_U: float
+    P1D_U: float
+    P2eA_U: float
+    P2eB_U: float
+    P2eC_U: float
+    P2eD_U: float
 
     P1_mean_max: float
     P1_mean:  float

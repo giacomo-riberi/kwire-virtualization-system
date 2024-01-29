@@ -352,7 +352,17 @@ def command_execute(args: adsk.core.CommandEventArgs):
         PA_data.angle_PA_target = round(_app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang, 3)
         # futil.log(f'angle value is {PA_data.angle_PA_target}') # debug
 
-        # ++++ measure distance between P2e and 4 markers
+        # ++++ measure distance between P1, P2, P2e and 4 markers
+
+        PA_data.P1A_F = round(kwire_PA_P1.distanceTo(markers["A"])*10, 3)
+        PA_data.P1B_F = round(kwire_PA_P1.distanceTo(markers["B"])*10, 3)
+        PA_data.P1C_F = round(kwire_PA_P1.distanceTo(markers["C"])*10, 3)
+        PA_data.P1D_F = round(kwire_PA_P1.distanceTo(markers["D"])*10, 3)
+        PA_data.P2A_F = round(kwire_PA_P2.distanceTo(markers["A"])*10, 3)
+        PA_data.P2B_F = round(kwire_PA_P2.distanceTo(markers["B"])*10, 3)
+        PA_data.P2C_F = round(kwire_PA_P2.distanceTo(markers["C"])*10, 3)
+        PA_data.P2D_F = round(kwire_PA_P2.distanceTo(markers["D"])*10, 3)
+
         PA_data.P2eA = round(kwire_PA_P2_estimated.distanceTo(markers["A"])*10, 3)
         PA_data.P2eB = round(kwire_PA_P2_estimated.distanceTo(markers["B"])*10, 3)
         PA_data.P2eC = round(kwire_PA_P2_estimated.distanceTo(markers["C"])*10, 3)
