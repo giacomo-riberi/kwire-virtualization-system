@@ -6,6 +6,7 @@
 from .kwirevirtsys import entry as kwirevirtsys
 from .kwiredistsys import entry as kwiredistsys
 from .kwirevirtsys_fast import entry as kwirevirtsys_fast
+from .deleteobjects import entry as deleteobjects
 
 # TODO add your imported modules to this list.
 # Fusion will automatically call the start() and stop() functions.
@@ -13,6 +14,7 @@ commands = [
     kwirevirtsys,
     kwirevirtsys_fast,
     kwiredistsys,
+    deleteobjects,
 ]
 
 
