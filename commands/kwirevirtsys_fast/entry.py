@@ -540,7 +540,9 @@ def trilaterate3D(
     # futil.log(f"before: {m1P+m2P, m2P+m3P, m3P+m1P}") # debug
 
     # check if the spheres intersect, if they don't, increase the radius
+    watchdog = 0
     while m1P + m2P <= m1.distanceTo(m2) or m2P + m3P <= m2.distanceTo(m3) or m3P + m1P <= m3.distanceTo(m1):
+        watchdog += 1
         if m1P + m2P <= m1.distanceTo(m2):
             m1P += 0.01
             m2P += 0.01
@@ -550,6 +552,8 @@ def trilaterate3D(
         if m3P + m1P <= m3.distanceTo(m1):
             m3P += 0.01
             m1P += 0.01
+        if watchdog > 100:
+            return None
     
     # futil.log(f"after:  {m1P, m2P, m3P}") # debug
     # futil.log(f"after:  {m1P+m2P, m2P+m3P, m3P+m1P}") # debug
