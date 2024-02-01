@@ -222,7 +222,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
         for occ in _rootComp.allOccurrences:
             # futil.log(f'occurrence name: {occ.name}') # debug
-            if occ.name == f"{PA_data.target} PA phase:{PA_data.phase}:1": # "ECP:1 PA phase:0:1"
+            if occ.name == f"phase:{PA_data.phase} - {PA_data.target} PA:1": # "phase:0 - ECP:1 PA:1"
                 PA_occ = occ
                 PA_comp = PA_occ.component
                 
