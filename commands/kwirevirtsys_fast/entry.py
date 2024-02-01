@@ -304,12 +304,14 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # futil.log(f'kwire_PA_P1 - {kwire_PA_P1.asArray()}\n kwire_PA_P2 {kwire_PA_P2.asArray()}') # debug
 
         kwire_PA_P1P2 = adsk.core.Line3D.create(kwire_PA_P1, kwire_PA_P2)
+        
         kwire_PA_vector = kwire_PA_P1.vectorTo(kwire_PA_P2)#  vector representing the direction of kwire (normalized)
         kwire_PA_vector.normalize()
         kwire_PA_P2_estimated = intersect_point(skin_brb, kwire_PA_P1, kwire_PA_vector, 200, 12)
-        kwire_PA_P3 = adsk.core.Point3D.create(*kwire_PA_P1.asArray())
+        
         kwire_PA_vector_lenght = kwire_PA_vector.copy() # vector representing the full lenght of kwire
         kwire_PA_vector_lenght.scaleBy(kwirel)
+        kwire_PA_P3 = kwire_PA_P1.copy()
         kwire_PA_P3.translateBy(kwire_PA_vector_lenght)
 
         # futil.log(f'kwire_PA_P2_estimated: {kwire_PA_P2_estimated.asArray()}')
