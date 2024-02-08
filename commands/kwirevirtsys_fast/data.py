@@ -12,7 +12,7 @@ class PAdata(data_elaboration):
     "positioning attempt data"
 
     datatype: str
-    TEST_id: str
+    PHASE_id: str
     ECP_id: str
     id: str
     comment: str; "used to mark data on database for later technical analysis"
@@ -21,9 +21,13 @@ class PAdata(data_elaboration):
     ECP_number: int
     PA_number: int
     success: bool
+
+    entered_articulation: int; "kwire entered articulation cavity (-1: not analyzed; 0: not entered; 1: entered)"
+
     PA_D: float
     PA_RPC: int;    "PA radiation picture count"
 
+    values_from_unity: str
     P1A: float;     "P1 - marker: measured with caliper"
     P1B: float
     P1C: float
