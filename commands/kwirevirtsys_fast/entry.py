@@ -356,7 +356,9 @@ def command_execute(args: adsk.core.CommandEventArgs):
         # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.2958 # to convert from radians to degrees
         
-        PA_data.angle_PA_target = round(_app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang, 3)
+        PA_data.angle_PA_target = abs(round(_app.measureManager.measureAngle(kwire_PA_P1P2, kwire_target_P1P2_estimated).value * K_radang, 3))
+        if PA_data.angle_PA_target > 90:
+            PA_data.angle_PA_target = 180 - PA_data.angle_PA_target
         # futil.log(f'angle value is {PA_data.angle_PA_target}') # debug
 
         # ++++ measure distance between P1, P2, P2e and 4 markers
