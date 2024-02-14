@@ -372,10 +372,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
         PA_data.P2C_F = round(kwire_PA_P2.distanceTo(markers["C"])*10, 3)
         PA_data.P2D_F = round(kwire_PA_P2.distanceTo(markers["D"])*10, 3)
 
-        PA_data.P2eA = round(kwire_PA_P2_estimated.distanceTo(markers["A"])*10, 3)
-        PA_data.P2eB = round(kwire_PA_P2_estimated.distanceTo(markers["B"])*10, 3)
-        PA_data.P2eC = round(kwire_PA_P2_estimated.distanceTo(markers["C"])*10, 3)
-        PA_data.P2eD = round(kwire_PA_P2_estimated.distanceTo(markers["D"])*10, 3)
+        PA_data.P2eA_F = round(kwire_PA_P2_estimated.distanceTo(markers["A"])*10, 3)
+        PA_data.P2eB_F = round(kwire_PA_P2_estimated.distanceTo(markers["B"])*10, 3)
+        PA_data.P2eC_F = round(kwire_PA_P2_estimated.distanceTo(markers["C"])*10, 3)
+        PA_data.P2eD_F = round(kwire_PA_P2_estimated.distanceTo(markers["D"])*10, 3)
 
         # ++++ measure delta distance between kwire and target insertion point
         PA_data.distance_P1_PA_target = round(kwire_target_P1.distanceTo(kwire_PA_P1)*10, 3)
