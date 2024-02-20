@@ -353,6 +353,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
             # _ = createPoint_by_point3D(None, None, distance_PA_anatomybody_result.positionOne, f"position one") # debug
             # _ = createPoint_by_point3D(None, None, distance_PA_anatomybody_result.positionTwo, f"position two") # debug
         
+        PA_data.hit_count = sum(1 for value in PA_data.anatomy.values() if value == 0.0)
+        
         # ++++ measure delta angle between PA axis and target axis
         K_radang = 57.2958 # to convert from radians to degrees
         
