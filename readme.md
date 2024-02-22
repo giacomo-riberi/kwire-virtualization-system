@@ -1,2 +1,2 @@
 INSTALL DEPENDENCIES (run it in fusion and paste it on terminal):
-import os; print("cd", end=" "); os.getcwd(); print("\n .\python\python.exe -m pip install --upgrade --target=.\python\Lib numpy pyperclip")
+import os; print(f"EXECUTE:\ncd {os.getcwd()}"); print(".\python\python.exe -m pip install --upgrade --target=.\python\Lib numpy pyperclip") 
