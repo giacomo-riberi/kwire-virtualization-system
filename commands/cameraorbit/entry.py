@@ -88,9 +88,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    body_sel = inputs.addSelectionInput('body', "body", "select body")
-    body_sel.addSelectionFilter(adsk.core.SelectionCommandInput.Bodies)
-    body_sel.setSelectionLimits(minimum=1, maximum=1)
+    sel = inputs.addSelectionInput('pivot', "pivot", "select pivot")
+    sel.addSelectionFilter(adsk.core.SelectionCommandInput.Bodies)
+    sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionLines)
+    sel.setSelectionLimits(minimum=1, maximum=1)
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -134,10 +135,10 @@ def generate_orbit_point(center: adsk.core.Point3D, point_on_circumference: adsk
     return points
 
 
-def closest_point_on_line(line_point, line_direction, point):
-    line_point = np.array(line_point)
-    line_direction = np.array(line_direction)
-    point = np.array(point)
+def closest_point_on_line(line_point: adsk.core.Point3D, line_direction: adsk.core.Vector3D, point: adsk.core.Point3D) -> adsk.core.Point3D:
+    line_point = np.array(line_point.asArray())
+    line_direction = np.array(line_direction.asArray())
+    point = np.array(point.asArray())
     
     # Calculate the vector from line_point to point
     line_to_point = point - line_point
@@ -148,7 +149,7 @@ def closest_point_on_line(line_point, line_direction, point):
     # Closest point on the line is the projection of point onto the line
     closest_point = line_point + t * line_direction
     
-    return closest_point
+    return adsk.core.Point3D.create(*closest_point)
 
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
@@ -159,20 +160,34 @@ def command_execute(args: adsk.core.CommandEventArgs):
     try:
         inputs = args.command.commandInputs
 
-        selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('body'))
-        body = adsk.fusion.BRepBody.cast(selcomin.selection(0).entity)
-
-        futil.log(f'body name: {body.name}')
-
         camera = _app.activeViewport.camera
-        camera.target = body.physicalProperties.centerOfMass
         camera.isSmoothTransition = False
-
         animation_duration = 3
         frames = 1000
 
-        cpol = closest_point_on_line(adsk.core.Point3D.create(0, 0, 0).asArray(), adsk.core.Vector3D.create(0,0,1).asArray(), camera.eye.asArray())
-        circumference_points = generate_orbit_point(adsk.core.Point3D.create(*cpol), camera.eye, frames)
+        selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
+
+        if selcomin.selection(0).entity.classType() == adsk.fusion.BRepBody.classType():
+            # BODY
+            body = adsk.fusion.BRepBody.cast(selcomin.selection(0).entity)
+            futil.log(f'body name: {body.name}')
+
+            camera.target = body.physicalProperties.centerOfMass
+            cpol = closest_point_on_line(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0,0,1), camera.eye)
+            circumference_points = generate_orbit_point(cpol, camera.eye, frames)
+
+        elif selcomin.selection(0).entity.classType() == adsk.fusion.ConstructionAxis.classType():
+            # LINE (not working)
+            line = adsk.fusion.ConstructionAxis.cast(selcomin.selection(0).entity)
+            futil.log(f'line name: {line.name}')
+            
+            # line.geometry.origin
+            # line.geometry.direction
+            camera.target = closest_point_on_line(line.geometry.origin, line.geometry.direction, camera.eye)
+            circumference_points = generate_orbit_point(camera.target, camera.eye, frames)
+        else:
+            futil.log(f'unsupported selection type')
+            return
 
         # prepare camera for recording
         camera.eye = circumference_points[0]
