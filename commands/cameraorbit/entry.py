@@ -105,6 +105,7 @@ def command_activate(args: adsk.core.CommandEventArgs):
 
     futil.log(f'{CMD_NAME}: Command Activate Event')
 
+
 def generate_orbit_point(center: adsk.core.Point3D, point_on_circumference: adsk.core.Point3D, num_points: int=200) -> list[adsk.core.Point3D]:
     radius = center.distanceTo(point_on_circumference)
 
@@ -132,6 +133,23 @@ def generate_orbit_point(center: adsk.core.Point3D, point_on_circumference: adsk
     
     return points
 
+
+def closest_point_on_line(line_point, line_direction, point):
+    line_point = np.array(line_point)
+    line_direction = np.array(line_direction)
+    point = np.array(point)
+    
+    # Calculate the vector from line_point to point
+    line_to_point = point - line_point
+    
+    # Project line_to_point onto the line direction vector
+    t = np.dot(line_to_point, line_direction) / np.dot(line_direction, line_direction)
+    
+    # Closest point on the line is the projection of point onto the line
+    closest_point = line_point + t * line_direction
+    
+    return closest_point
+
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
@@ -149,14 +167,31 @@ def command_execute(args: adsk.core.CommandEventArgs):
         camera = _app.activeViewport.camera
         camera.target = body.physicalProperties.centerOfMass
         camera.isSmoothTransition = False
-        circumference_points = generate_orbit_point(camera.target, camera.eye, 300)
+
+        animation_duration = 3
+        frames = 1000
+
+        cpol = closest_point_on_line(adsk.core.Point3D.create(0, 0, 0).asArray(), adsk.core.Vector3D.create(0,0,1).asArray(), camera.eye.asArray())
+        circumference_points = generate_orbit_point(adsk.core.Point3D.create(*cpol), camera.eye, frames)
+
+        # prepare camera for recording
+        camera.eye = circumference_points[0]
+        _app.activeViewport.camera = camera
+        _app.activeViewport.refresh()
+        time.sleep(1)
+
+        futil.log(f'starting orbit animation...')
 
         for p in circumference_points:
+            start_time = time.time()
             camera.eye = p
             _app.activeViewport.camera = camera
             _app.activeViewport.refresh()
             adsk.doEvents()
-            time.sleep(0.0333)
+            time_to_wait = (animation_duration/frames) - (time.time()-start_time)
+            time.sleep(time_to_wait if time_to_wait > 0 else 0)
+        
+        futil.log(f'stopped orbit animation...')
 
     except Exception as e:
         if _ui:
@@ -198,5 +233,4 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME}: Command Destroy Event')
 
-    global local_handlers
-    local_handlers = []
+    time.sleep(1)

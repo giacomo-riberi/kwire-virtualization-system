@@ -12,10 +12,10 @@ from .cameraorbit import entry as cameraorbit
 # TODO add your imported modules to this list.
 # Fusion will automatically call the start() and stop() functions.
 commands = [
-    kwirevirtsys,
-    kwirevirtsys_fast,
+    # kwirevirtsys,
+    # kwirevirtsys_fast,
     kwiredistsys,
-    deleteobjects,
+    # deleteobjects,
     cameraorbit,
 ]
 
