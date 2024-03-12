@@ -128,6 +128,39 @@ def points_on_circle(center, start, line_direction, num_points) -> list[adsk.cor
 
     return [adsk.core.Point3D.create(*cp) for cp in points]
 
+def generate_circle(center, normal, radius, num_points=100) -> list[adsk.core.Point3D]:
+    """
+    Generate points on a circle in 3D space.
+
+    Args:
+    - center: The center of the circle as a numpy array of shape (3,).
+    - normal: The normal vector of the plane containing the circle as a numpy array of shape (3,).
+    - radius: The radius of the circle.
+    - num_points: Number of points to generate on the circle.
+
+    Returns:
+    - points: A numpy array of shape (num_points, 3) containing the generated points.
+    """
+    # Normalize the normal vector
+    normal = normal / np.linalg.norm(normal)
+
+    # Generate an orthonormal basis for the plane containing the circle
+    v1 = np.array([1.0, 0.0, 0.0], dtype=float)
+    if np.allclose(v1, normal):
+        v1 = np.array([0.0, 1.0, 0.0], dtype=float)
+    v1 -= v1.dot(normal) * normal
+    v1 /= np.linalg.norm(v1)
+    v2 = np.cross(normal, v1)
+
+    # Generate points on the circle using parametric equations
+    theta = np.linspace(0, 2 * np.pi, num_points)
+    points_on_plane = np.column_stack((np.cos(theta), np.sin(theta)))
+
+    # Transform points to 3D
+    points = center + radius * (np.outer(points_on_plane[:, 0], v1) + np.outer(points_on_plane[:, 1], v2))
+
+    return [adsk.core.Point3D.create(*cp) for cp in points]
+
 
 def project_point_on_line(vA, vB, vPoint) -> adsk.core.Point3D:
     vVector1 = vPoint - vA
@@ -213,27 +246,32 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 
                 COMs.append(body.physicalProperties.centerOfMass.asArray())
 
+        camera.target = adsk.core.Point3D.create(*np.mean(COMs, axis=0))
+        futil.log(f'COMs: {COMs} -  mean: {np.mean(COMs, axis=0)}')
+
+        for i in range(selcomin.selectionCount):
+            entity = selcomin.selection(i).entity
             if entity.classType() == adsk.fusion.ConstructionAxis.classType():
                 # LINE
                 line = adsk.fusion.ConstructionAxis.cast(entity)
                 futil.log(f'line name: {line.name}')
 
-                # cpol = project_point_on_line(line.geometry.origin.asArray(), line.geometry.direction.asArray(), camera.eye.asArray())
-
                 eye = createPoint_by_point3D(None, _rootComp, camera.eye, "eye")
                 res = _app.measureManager.measureMinimumDistance(line, eye)
                 axis_point = res.positionOne
                 _ = createPoint_by_point3D(None, _rootComp, axis_point, "axis_point") # debug
-                eye.deleteMe()
 
-                circumference_points = points_on_circle(axis_point.asArray(), camera.eye.asArray(), line.geometry.direction.asArray(), frames)
+                line_axis = adsk.core.Line3D.create(axis_point, camera.target).asInfiniteLine()
+                axis = createAxis_by_Line3D(None, _rootComp, line_axis, "axis")
+                circumference_points = generate_circle(axis_point.asArray(), axis.geometry.direction.asArray(), 10, frames)
                 for cp in circumference_points:
                     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point") # debug
+
+                # eye.deleteMe()
+                # axis.deleteMe() !!!
                 
 
         # prepare camera for recording
-        futil.log(f'COMs: {COMs} -  mean: {np.mean(COMs, axis=0)}')
-        camera.target = adsk.core.Point3D.create(*np.mean(COMs, axis=0))
         camera.eye = circumference_points[0]
         _app.activeViewport.camera = camera
         _app.activeViewport.refresh()
