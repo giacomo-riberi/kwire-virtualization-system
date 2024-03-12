@@ -91,7 +91,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     sel = inputs.addSelectionInput('pivot', "pivot", "select pivot")
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.Bodies)
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionLines)
-    sel.setSelectionLimits(minimum=1, maximum=1)
+    sel.setSelectionLimits(minimum=2, maximum=2)
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -135,21 +135,63 @@ def generate_orbit_point(center: adsk.core.Point3D, point_on_circumference: adsk
     return points
 
 
-def closest_point_on_line(line_point: adsk.core.Point3D, line_direction: adsk.core.Vector3D, point: adsk.core.Point3D) -> adsk.core.Point3D:
-    line_point = np.array(line_point.asArray())
-    line_direction = np.array(line_direction.asArray())
-    point = np.array(point.asArray())
+def project_point_on_line(vA, vB, vPoint) -> adsk.core.Point3D:
+    vVector1 = vPoint - vA
+    vVector2 = (vB - vA) / np.linalg.norm(vB - vA)
+
+    d = np.linalg.norm(vA - vB)
+    t = np.dot(vVector2, vVector1)
+
+    vVector3 = vVector2 * t
+
+    vClosestPoint = vA + vVector3
+
+    return adsk.core.Point3D.create(*vClosestPoint)
+
+
+def createPoint_by_point3D(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, p: adsk.core.Point3D, name="") -> adsk.fusion.ConstructionPoint:
+    "create visible construction point from a point 3D"
+    if comp == None:
+        comp = _rootComp
+        points = _rootComp.constructionPoints
+        
+    points = comp.constructionPoints
+
+    if occ == None:
+        pointsInput = points.createInput()
+    else:
+        pointsInput = points.createInput(occ)
+
+    pointsInput.setByPoint(p)
+    pc = points.add(pointsInput)
+    if name != "":
+        pc.name = name
+    return pc                                    
+
+
+def createAxis_by_Line3D(occ: adsk.fusion.Occurrence, comp: adsk.fusion.Component, l: adsk.core.Line3D | adsk.core.InfiniteLine3D, name="") -> adsk.fusion.ConstructionAxis:
+    "create visible construction axis from a line 3D"
+    if comp == None:
+        comp = _rootComp
+
+    axes = comp.constructionAxes
+
+    if occ == None:
+        axisInput = axes.createInput()
+    else:
+        axisInput = axes.createInput(occ)
     
-    # Calculate the vector from line_point to point
-    line_to_point = point - line_point
-    
-    # Project line_to_point onto the line direction vector
-    t = np.dot(line_to_point, line_direction) / np.dot(line_direction, line_direction)
-    
-    # Closest point on the line is the projection of point onto the line
-    closest_point = line_point + t * line_direction
-    
-    return adsk.core.Point3D.create(*closest_point)
+    if type(l) == adsk.core.Line3D:
+        axisInput.setByLine(l.asInfiniteLine())
+    elif type(l) == adsk.core.InfiniteLine3D:
+        axisInput.setByLine(l)
+    else:
+        futil.log(f'createAxis_by_Line3D: input not supported')
+    ca = axes.add(axisInput)
+    if name != "":
+        ca.name = name
+    return ca
+
 
 # This event handler is called when the user clicks the OK button in the command dialog or 
 # is immediately called after the created event not command inputs were created for the dialog.
@@ -167,27 +209,28 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
 
-        if selcomin.selection(0).entity.classType() == adsk.fusion.BRepBody.classType():
-            # BODY
-            body = adsk.fusion.BRepBody.cast(selcomin.selection(0).entity)
-            futil.log(f'body name: {body.name}')
+        for i in range(selcomin.selectionCount):
+            entity = selcomin.selection(i).entity
+            if entity.classType() == adsk.fusion.BRepBody.classType():
+                # BODY
+                body = adsk.fusion.BRepBody.cast(entity)
+                futil.log(f'body name: {body.name}')
 
-            camera.target = body.physicalProperties.centerOfMass
-            cpol = closest_point_on_line(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0,0,1), camera.eye)
-            circumference_points = generate_orbit_point(cpol, camera.eye, frames)
+                camera.target = body.physicalProperties.centerOfMass
 
-        elif selcomin.selection(0).entity.classType() == adsk.fusion.ConstructionAxis.classType():
-            # LINE (not working)
-            line = adsk.fusion.ConstructionAxis.cast(selcomin.selection(0).entity)
-            futil.log(f'line name: {line.name}')
-            
-            # line.geometry.origin
-            # line.geometry.direction
-            camera.target = closest_point_on_line(line.geometry.origin, line.geometry.direction, camera.eye)
-            circumference_points = generate_orbit_point(camera.target, camera.eye, frames)
-        else:
-            futil.log(f'unsupported selection type')
-            return
+            if entity.classType() == adsk.fusion.ConstructionAxis.classType():
+                # LINE
+                line = adsk.fusion.ConstructionAxis.cast(entity)
+                futil.log(f'line name: {line.name}')
+
+                # cpol = project_point_on_line(line.geometry.origin.asArray(), line.geometry.direction.asArray(), camera.eye.asArray())
+
+                eye = createPoint_by_point3D(None, _rootComp, camera.eye, "eye")
+                res = _app.measureManager.measureMinimumDistance(line, eye)
+                cpol = res.positionOne
+                eye.deleteMe()
+
+                circumference_points = generate_orbit_point(cpol, camera.eye, frames)
 
         # prepare camera for recording
         camera.eye = circumference_points[0]
