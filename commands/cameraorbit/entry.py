@@ -258,17 +258,17 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
                 eye = createPoint_by_point3D(None, _rootComp, camera.eye, "eye")
                 res = _app.measureManager.measureMinimumDistance(line, eye)
-                axis_point = res.positionOne
-                _ = createPoint_by_point3D(None, _rootComp, axis_point, "axis_point") # debug
+                eye_projection = res.positionOne
+                _ = createPoint_by_point3D(None, _rootComp, eye_projection, "eye_projection") # debug
 
-                line_axis = adsk.core.Line3D.create(axis_point, camera.target).asInfiniteLine()
-                axis = createAxis_by_Line3D(None, _rootComp, line_axis, "axis")
-                circumference_points = generate_circle(axis_point.asArray(), axis.geometry.direction.asArray(), 10, frames)
+                # need to create a line from axis_point to camera.target as line.geometry is in its own coordinate system
+                line = createAxis_by_Line3D(None, _rootComp, adsk.core.Line3D.create(eye_projection, camera.target), "line")
+                circumference_points = generate_circle(eye_projection.asArray(), line.geometry.direction.asArray(), 10, frames)
                 for cp in circumference_points:
                     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point") # debug
 
-                # eye.deleteMe()
-                # axis.deleteMe() !!!
+                eye.deleteMe()  # debug
+                line.deleteMe() # debug
                 
 
         # prepare camera for recording
