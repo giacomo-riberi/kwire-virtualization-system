@@ -107,52 +107,26 @@ def command_activate(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME}: Command Activate Event')
 
 
-def points_on_circumference(line_point, line_direction, radius, num_points) -> list[adsk.core.Point3D]:
-    # Normalize the line direction vector
-    line_direction = line_direction / np.linalg.norm(line_direction)
-    
-    # Generate a basis for the plane orthogonal to the line direction
-    v, w = np.linalg.qr(np.random.randn(3,3))
-    v = v[:, 2]
-    w = w[:, 2]
-    
-    # Calculate points on the circumference
-    theta = np.linspace(0, 2 * np.pi, num_points)
-    points: list[adsk.core.Point3D] = []
-    for angle in theta:
-        point_on_plane = line_point + radius * (v * np.cos(angle) + w * np.sin(angle))
-        points.append(adsk.core.Point3D.create(*point_on_plane))
-    
-    return points
+def points_on_circle(center, start, line_direction, num_points) -> list[adsk.core.Point3D]:
+    # Calculate radius
+    radius = np.linalg.norm(np.array(start) - np.array(center))
 
+    # Find a vector perpendicular to the line direction
+    v1 = np.array([1, 0, 0]) if np.any(line_direction != np.array([1, 0, 0])) else np.array([1, 1, 0])
+    perpendicular = np.cross(line_direction, v1)
 
+    # Normalize the perpendicular vector
+    perpendicular /= np.linalg.norm(perpendicular)
 
-def generate_orbit_point(center: adsk.core.Point3D, point_on_circumference: adsk.core.Point3D, num_points: int=200) -> list[adsk.core.Point3D]:
-    radius = center.distanceTo(point_on_circumference)
-
-    # Calculate the vector from the center to the point on circumference
-    vec = np.array(point_on_circumference.asArray()) - np.array(center.asArray())
-    
-    # Normalize the vector
-    vec_normalized = vec / np.linalg.norm(vec)
-    
-    # Generate a basis vector orthogonal to vec
-    if vec_normalized[0] != 0 or vec_normalized[1] != 0:
-        ortho_vec = np.array([-vec_normalized[1], vec_normalized[0], 0])
-    else:
-        ortho_vec = np.array([1, 0, 0])
-    
-    # Normalize the orthogonal vector
-    ortho_vec_normalized = ortho_vec / np.linalg.norm(ortho_vec)
-    
-    # Generate points on the circumference
-    points: list[adsk.core.Point3D] = []
+    # Generate points on the circle
+    points = []
     for i in range(num_points):
         angle = 2 * np.pi * i / num_points
-        point = center.asArray() + radius * (np.cos(angle) * vec_normalized + np.sin(angle) * ortho_vec_normalized)
-        points.append(adsk.core.Point3D.create(*point))
-    
-    return points
+        # Calculate the point on the circle in the plane defined by perpendicular and line_direction
+        point = center + radius * (np.cos(angle) * perpendicular + np.sin(angle) * np.cross(perpendicular, line_direction))
+        points.append(point)
+
+    return [adsk.core.Point3D.create(*cp) for cp in points]
 
 
 def project_point_on_line(vA, vB, vPoint) -> adsk.core.Point3D:
@@ -230,7 +204,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
         selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
 
         COMs = []
-
         for i in range(selcomin.selectionCount):
             entity = selcomin.selection(i).entity
             if entity.classType() == adsk.fusion.BRepBody.classType():
@@ -253,8 +226,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 _ = createPoint_by_point3D(None, _rootComp, axis_point, "axis_point") # debug
                 eye.deleteMe()
 
-                # circumference_points = generate_orbit_point(axis_point, camera.eye, frames)
-                circumference_points = points_on_circumference(axis_point.asArray(), line.geometry.direction.asArray(), 10, frames)
+                circumference_points = points_on_circle(axis_point.asArray(), camera.eye.asArray(), line.geometry.direction.asArray(), frames)
                 for cp in circumference_points:
                     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point") # debug
                 
