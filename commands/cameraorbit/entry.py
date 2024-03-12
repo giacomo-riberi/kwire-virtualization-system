@@ -285,8 +285,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 # for cp in circumference_points: # debug
                 #     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point")
 
-                # eye.deleteMe()  # debug
-                # line.deleteMe() # debug
+                eye.deleteMe()  # debug
+                line.deleteMe() # debug
                 
 
         # prepare camera for recording
