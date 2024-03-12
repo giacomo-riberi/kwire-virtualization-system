@@ -89,9 +89,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs = args.command.commandInputs
 
     sel = inputs.addSelectionInput('pivot', "pivot", "select pivot")
-    sel.addSelectionFilter(adsk.core.SelectionCommandInput.Bodies)
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionLines)
-    sel.setSelectionLimits(minimum=2, maximum=4)
+    sel.addSelectionFilter(adsk.core.SelectionCommandInput.Bodies)
+    sel.addSelectionFilter(adsk.core.SelectionCommandInput.Vertices)
+    sel.setSelectionLimits(minimum=2, maximum=6)
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -237,20 +238,31 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         camera = _app.activeViewport.camera
         camera.isSmoothTransition = False
-        animation_duration = 3
-        frames = 50
+        animation_duration = 30
+        frames = 3000
 
         selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
 
         COMs = []
         for i in range(selcomin.selectionCount):
             entity = selcomin.selection(i).entity
+            futil.log(f'entity type: {entity.classType()}')
+            
             if entity.classType() == adsk.fusion.BRepBody.classType():
                 # BODY
                 body = adsk.fusion.BRepBody.cast(entity)
                 futil.log(f'body name: {body.name}')
                 
                 COMs.append(body.physicalProperties.centerOfMass.asArray())
+        
+        for i in range(selcomin.selectionCount):
+            entity = selcomin.selection(i).entity
+            if entity.classType() == adsk.fusion.BRepVertex.classType():
+                # VERTEX
+                vertex = adsk.fusion.BRepVertex.cast(entity)
+                futil.log(f'vertex geom: {vertex.geometry.asArray()}')
+                
+                COMs.append(vertex.geometry.asArray())
 
         camera.target = adsk.core.Point3D.create(*np.mean(COMs, axis=0))
         futil.log(f'COMs: {COMs} -  mean: {np.mean(COMs, axis=0)}')
