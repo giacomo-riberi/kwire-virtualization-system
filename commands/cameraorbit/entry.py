@@ -128,19 +128,25 @@ def points_on_circle(center, start, line_direction, num_points) -> list[adsk.cor
 
     return [adsk.core.Point3D.create(*cp) for cp in points]
 
-def generate_circle(center, normal, radius, num_points=100) -> list[adsk.core.Point3D]:
+def generate_circle(center: adsk.core.Point3D, normal: adsk.core.Vector3D, tangent_point: adsk.core.Point3D, num_points=200) -> list[adsk.core.Point3D]:
     """
     Generate points on a circle in 3D space.
 
     Args:
     - center: The center of the circle as a numpy array of shape (3,).
     - normal: The normal vector of the plane containing the circle as a numpy array of shape (3,).
-    - radius: The radius of the circle.
+    - tangent_point: The point tangent to the circle.
     - num_points: Number of points to generate on the circle.
 
     Returns:
     - points: A numpy array of shape (num_points, 3) containing the generated points.
     """
+    radius = center.distanceTo(tangent_point)
+
+    center = np.array(center.asArray(), dtype=float)
+    normal = np.array(normal.asArray(), dtype=float)
+    tangent_point = np.array(tangent_point.asArray(), dtype=float)
+
     # Normalize the normal vector
     normal = normal / np.linalg.norm(normal)
 
@@ -159,7 +165,7 @@ def generate_circle(center, normal, radius, num_points=100) -> list[adsk.core.Po
     # Transform points to 3D
     points = center + radius * (np.outer(points_on_plane[:, 0], v1) + np.outer(points_on_plane[:, 1], v2))
 
-    return [adsk.core.Point3D.create(*cp) for cp in points]
+    return [adsk.core.Point3D.create(*p) for p in points]
 
 
 def project_point_on_line(vA, vB, vPoint) -> adsk.core.Point3D:
@@ -259,16 +265,16 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 eye = createPoint_by_point3D(None, _rootComp, camera.eye, "eye")
                 res = _app.measureManager.measureMinimumDistance(line, eye)
                 eye_projection = res.positionOne
-                _ = createPoint_by_point3D(None, _rootComp, eye_projection, "eye_projection") # debug
+                # _ = createPoint_by_point3D(None, _rootComp, eye_projection, "eye_projection") # debug
 
                 # need to create a line from axis_point to camera.target as line.geometry is in its own coordinate system
                 line = createAxis_by_Line3D(None, _rootComp, adsk.core.Line3D.create(eye_projection, camera.target), "line")
-                circumference_points = generate_circle(eye_projection.asArray(), line.geometry.direction.asArray(), 10, frames)
-                for cp in circumference_points:
-                    _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point") # debug
+                circumference_points = generate_circle(eye_projection, line.geometry.direction, camera.eye, frames)
+                # for cp in circumference_points: # debug
+                #     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point")
 
-                eye.deleteMe()  # debug
-                line.deleteMe() # debug
+                # eye.deleteMe()  # debug
+                # line.deleteMe() # debug
                 
 
         # prepare camera for recording
