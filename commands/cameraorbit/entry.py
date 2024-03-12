@@ -91,7 +91,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     sel = inputs.addSelectionInput('pivot', "pivot", "select pivot")
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.Bodies)
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionLines)
-    sel.setSelectionLimits(minimum=2, maximum=2)
+    sel.setSelectionLimits(minimum=2, maximum=4)
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -105,6 +105,26 @@ def command_activate(args: adsk.core.CommandEventArgs):
     global markA_last, markB_last, markC_last, markD_last
 
     futil.log(f'{CMD_NAME}: Command Activate Event')
+
+
+def points_on_circumference(line_point, line_direction, radius, num_points) -> list[adsk.core.Point3D]:
+    # Normalize the line direction vector
+    line_direction = line_direction / np.linalg.norm(line_direction)
+    
+    # Generate a basis for the plane orthogonal to the line direction
+    v, w = np.linalg.qr(np.random.randn(3,3))
+    v = v[:, 2]
+    w = w[:, 2]
+    
+    # Calculate points on the circumference
+    theta = np.linspace(0, 2 * np.pi, num_points)
+    points: list[adsk.core.Point3D] = []
+    for angle in theta:
+        point_on_plane = line_point + radius * (v * np.cos(angle) + w * np.sin(angle))
+        points.append(adsk.core.Point3D.create(*point_on_plane))
+    
+    return points
+
 
 
 def generate_orbit_point(center: adsk.core.Point3D, point_on_circumference: adsk.core.Point3D, num_points: int=200) -> list[adsk.core.Point3D]:
@@ -205,9 +225,11 @@ def command_execute(args: adsk.core.CommandEventArgs):
         camera = _app.activeViewport.camera
         camera.isSmoothTransition = False
         animation_duration = 3
-        frames = 1000
+        frames = 50
 
         selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
+
+        COMs = []
 
         for i in range(selcomin.selectionCount):
             entity = selcomin.selection(i).entity
@@ -215,8 +237,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 # BODY
                 body = adsk.fusion.BRepBody.cast(entity)
                 futil.log(f'body name: {body.name}')
-
-                camera.target = body.physicalProperties.centerOfMass
+                
+                COMs.append(body.physicalProperties.centerOfMass.asArray())
 
             if entity.classType() == adsk.fusion.ConstructionAxis.classType():
                 # LINE
@@ -227,12 +249,19 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
                 eye = createPoint_by_point3D(None, _rootComp, camera.eye, "eye")
                 res = _app.measureManager.measureMinimumDistance(line, eye)
-                cpol = res.positionOne
+                axis_point = res.positionOne
+                _ = createPoint_by_point3D(None, _rootComp, axis_point, "axis_point") # debug
                 eye.deleteMe()
 
-                circumference_points = generate_orbit_point(cpol, camera.eye, frames)
+                # circumference_points = generate_orbit_point(axis_point, camera.eye, frames)
+                circumference_points = points_on_circumference(axis_point.asArray(), line.geometry.direction.asArray(), 10, frames)
+                for cp in circumference_points:
+                    _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point") # debug
+                
 
         # prepare camera for recording
+        futil.log(f'COMs: {COMs} -  mean: {np.mean(COMs, axis=0)}')
+        camera.target = adsk.core.Point3D.create(*np.mean(COMs, axis=0))
         camera.eye = circumference_points[0]
         _app.activeViewport.camera = camera
         _app.activeViewport.refresh()
