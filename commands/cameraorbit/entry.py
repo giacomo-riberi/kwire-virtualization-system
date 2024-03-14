@@ -94,6 +94,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.Vertices)
     sel.setSelectionLimits(minimum=2, maximum=6)
 
+    _ = inputs.addStringValueInput('frames', 'frames', "3000")
+    _ = inputs.addStringValueInput('duration', 'duration', "30")
+
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(args.command.executePreview, command_preview, local_handlers=local_handlers)
@@ -238,9 +241,9 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         camera = _app.activeViewport.camera
         camera.isSmoothTransition = False
-        animation_duration = 30
-        frames = 3000
 
+        frames = adsk.core.StringValueCommandInput.cast(inputs.itemById('frames')).value
+        animation_duration = adsk.core.StringValueCommandInput.cast(inputs.itemById('duration')).value
         selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
 
         COMs = []
