@@ -242,8 +242,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
         camera = _app.activeViewport.camera
         camera.isSmoothTransition = False
 
-        frames = adsk.core.StringValueCommandInput.cast(inputs.itemById('frames')).value
-        animation_duration = adsk.core.StringValueCommandInput.cast(inputs.itemById('duration')).value
+        frames   = int(adsk.core.StringValueCommandInput.cast(inputs.itemById('frames')).value)
+        duration = int(adsk.core.StringValueCommandInput.cast(inputs.itemById('duration')).value)
         selcomin = adsk.core.SelectionCommandInput.cast(inputs.itemById('pivot'))
 
         COMs = []
@@ -288,8 +288,12 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 # for cp in circumference_points: # debug
                 #     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point")
 
-                eye.deleteMe()  # debug
-                line.deleteMe() # debug
+                if not eye.deleteMe(): # debug
+                    if _ui:
+                        _ui.messageBox('Failed deleting eye')
+                if not line.deleteMe(): # debug
+                    if _ui:
+                        _ui.messageBox('Failed deleting line')
                 
 
         # prepare camera for recording
@@ -306,7 +310,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             _app.activeViewport.camera = camera
             _app.activeViewport.refresh()
             adsk.doEvents()
-            time_to_wait = (animation_duration/frames) - (time.time()-start_time)
+            time_to_wait = (duration/frames) - (time.time()-start_time)
             time.sleep(time_to_wait if time_to_wait > 0 else 0)
         
         futil.log(f'stopped orbit animation...')
