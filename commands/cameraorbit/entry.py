@@ -94,8 +94,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     sel.addSelectionFilter(adsk.core.SelectionCommandInput.Vertices)
     sel.setSelectionLimits(minimum=2, maximum=6)
 
-    _ = inputs.addStringValueInput('frames', 'frames', "3000")
-    _ = inputs.addStringValueInput('duration', 'duration', "30")
+    _ = inputs.addStringValueInput('frames', 'frames', "1000")
+    _ = inputs.addStringValueInput('duration', 'duration', "10")
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -277,30 +277,44 @@ def command_execute(args: adsk.core.CommandEventArgs):
                 line = adsk.fusion.ConstructionAxis.cast(entity)
                 futil.log(f'line name: {line.name}')
 
-                eye = createPoint_by_point3D(None, _rootComp, camera.eye, "eye")
-                res = _app.measureManager.measureMinimumDistance(line, eye)
-                eye_projection = res.positionOne
-                # _ = createPoint_by_point3D(None, _rootComp, eye_projection, "eye_projection") # debug
+                axis_geom = line.geometry
 
-                # need to create a line from axis_point to camera.target as line.geometry is in its own coordinate system
-                line = createAxis_by_Line3D(None, _rootComp, adsk.core.Line3D.create(eye_projection, camera.target), "line")
-                circumference_points = generate_circle(eye_projection, line.geometry.direction, camera.eye, frames)
-                # for cp in circumference_points: # debug
-                #     _ = createPoint_by_point3D(None, _rootComp, cp, "circumference_point")
+                origin = np.array(axis_geom.origin.asArray(), dtype=float)
+                direction = np.array(axis_geom.direction.asArray(), dtype=float)
+                direction /= np.linalg.norm(direction)
 
-                if not eye.deleteMe(): # debug
-                    if _ui:
-                        _ui.messageBox('Failed deleting eye')
-                if not line.deleteMe(): # debug
-                    if _ui:
-                        _ui.messageBox('Failed deleting line')
-                
+                eye_np = np.array(camera.eye.asArray(), dtype=float)
+
+                # project eye onto axis
+                projection = origin + direction * np.dot(eye_np - origin, direction)
+
+                eye_projection = adsk.core.Point3D.create(*projection)
+
+                orbit_axis = adsk.core.Vector3D.create(
+                    *(
+                        np.array(camera.target.asArray()) - projection
+                    )
+                )
+
+                circumference_points = generate_circle(
+                    eye_projection,
+                    orbit_axis,
+                    camera.eye,
+                    frames
+                )
 
         # prepare camera for recording
         camera.eye = circumference_points[0]
         _app.activeViewport.camera = camera
         _app.activeViewport.refresh()
-        time.sleep(1)
+
+        startup_delay = 1.0  # seconds before animation starts
+
+        futil.log(f'waiting {startup_delay} seconds before orbit animation...')
+
+        end_wait = time.time() + startup_delay
+        while time.time() < end_wait:
+            adsk.doEvents()
 
         futil.log(f'starting orbit animation...')
 
