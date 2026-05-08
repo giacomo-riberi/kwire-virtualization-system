@@ -308,6 +308,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
         _app.activeViewport.camera = camera
         _app.activeViewport.refresh()
 
+        # clear selections so bodies are not highlighted blue
+        _ui.activeSelections.clear()
+        adsk.doEvents()
+
         startup_delay = 1.0  # seconds before animation starts
 
         futil.log(f'waiting {startup_delay} seconds before orbit animation...')
